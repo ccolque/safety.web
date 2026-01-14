@@ -21,6 +21,7 @@ export interface IIncident {
     keyEvents?: any[],
     causeTree?: any,
     ai_analysis?: any,
+    image_analysis?: any,
     similarCases?: any[],
     actionsTaken?: any[]
     involvedPeople?: any[]

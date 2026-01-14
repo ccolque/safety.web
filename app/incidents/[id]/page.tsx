@@ -35,7 +35,7 @@ import { IIncident } from "@/models/incidents"
 import { IMultimedia } from "@/models/multimedia"
 import { getIncidentsById } from "@/services/incident-service"
 import { Spinner } from "@/components/ui/spinner"
-import { EMOTIONS_COLOR } from "@/lib/constants"
+import { EMOTIONS_COLOR, Language, LANGUAGES } from "@/lib/constants"
 
 const translations = {
   en: {
@@ -113,6 +113,14 @@ const translations = {
     sendToSelected: "Send to Selected", // Added for modal
     keyEventsAndSequence: "Key Events and Sequence", // Added for keyEvents card header
     comparativeAnalysis: "Comparative Analysis", // Added for comparativeAnalysis card header
+    detectedObjects: "Detected objects",
+    identifiedRisks: "Identified risks",
+    coordinates: "Coordinates",
+    noInconsistenciesDetected: "No inconsistencies detected in report",
+    severityCritical: "Critical",
+    severityHigh: "High",
+    severityMedium: "Medium",
+    severityLow: "Low",
   },
   es: {
     backButton: "Volver a Incidentes",
@@ -191,6 +199,98 @@ const translations = {
     sendToSelected: "Enviar a Seleccionados", // Added for modal
     keyEventsAndSequence: "Eventos Clave y Secuencia", // Added for keyEvents card header
     comparativeAnalysis: "Análisis Comparativo", // Added for comparativeAnalysis card header
+    detectedObjects: "Objetos detectados",
+    identifiedRisks: "Riesgos identificados",
+    coordinates: "Coordenadas",
+    noInconsistenciesDetected: "Ninguna inconsistencia detectada en el reporte",
+    severityCritical: "Crítica",
+    severityHigh: "Alta",
+    severityMedium: "Media",
+    severityLow: "Baja",
+  },
+  fr: {
+    backButton: "Retour aux Incidents",
+    shareButton: "Partager",
+    status: "Statut",
+    severity: "Gravité",
+    reportedBy: "Signalé par",
+    date: "Date",
+    time: "Heure",
+    location: "Localisation",
+    teamInvolved: "Équipe impliquée",
+    description: "Description",
+    aiAnalysis: "Analyse IA",
+    summary: "Résumé",
+    title: "Titre",
+    audioReport: "Audio du Rapport",
+    inconsistencies: "Incohérences",
+    recommendations: "Recommandations Générées par IA",
+    keyEvents: "Événements Clés et Séquence",
+    keyEventsDesc: "Séquence chronologique des événements principaux pour rendre l'information implicite explicite et sans ambiguïté.",
+    causeTree: "Arbre des Causes",
+    observedFacts: "Faits Observables",
+    immediateFactors: "Facteurs Contributifs Immédiats",
+    underlyingCauses: "Causes Sous-jacentes Possibles",
+    timeline: "Chronologie",
+    inProgress: "En cours",
+    photos: "Photos",
+    locationAndMap: "Localisation et Carte",
+    comparative: "Analyse Comparative",
+    similarCases: "Cas Similaires Antérieurs",
+    case: "Cas",
+    caseNumber: "Numéro de Cas",
+    equipmentFailure: "Défaillance d'équipement dans la zone de production",
+    safetyProtocol: "Violation du protocole de sécurité",
+    communicationBreakdown: "Défaillance de communication lors du changement d'équipe",
+    resolved: "Résolu",
+    similarity: "Similarité",
+    resolutionTime: "Temps de Résolution",
+    hours: "heures",
+    actionsTaken: "Actions Prises dans les Cas Similaires",
+    immediateIsolation: "Isolement Immédiat de la Zone",
+    teamDebriefing: "Séance d'Analyse en Équipe",
+    equipmentInspection: "Inspection Complète des Équipements",
+    procedureUpdate: "Mise à Jour de la Documentation des Procédures",
+    effectivenessRate: "Taux d'Efficacité",
+    priorityAction: "Action Prioritaire",
+    conductSafetyAudit: "Mener un audit de sécurité complet de la zone affectée dans les 48 heures",
+    preventiveMeasure: "Mesure Préventive",
+    implementTrainingProgram: "Mettre en œuvre un programme de formation de mise à jour pour tout le personnel impliqué dans des opérations similaires",
+    followUp: "Action de Suivi",
+    scheduleReview: "Programmer des révisions de sécurité mensuelles pour le prochain trimestre afin de surveiller les améliorations",
+    country: "Pays",
+    state: "État",
+    involvedPeople: "Personnes Impliquées",
+    position: "Poste",
+    name: "Nom",
+    audioTranscription: "Transcription Audio",
+    sentimentAnalysis: "Analyse des Sentiments IA",
+    overallSentiment: "Sentiment Général",
+    detectedEmotions: "Émotions Détectées",
+    tone: "Ton",
+    confidence: "Confiance",
+    shareModalTitle: "Partager le Rapport d'Incident",
+    incidentSummary: "Résumé de l'Incident",
+    selectContacts: "Sélectionner les Contacts",
+    sendViaWhatsApp: "Envoyer via WhatsApp",
+    sendViaEmail: "Envoyer par E-mail",
+    noContactsSelected: "Veuillez sélectionner au moins un contact",
+    messageSent: "Message envoyé avec succès!",
+    incidentPhoto: "Photo de l'Incident",
+    peopleInvolved: "Personnes Impliquées",
+    selectWhatsAppContacts: "Sélectionner les Contacts pour WhatsApp",
+    selectEmailContacts: "Sélectionner les Contacts pour E-mail",
+    sendToSelected: "Envoyer aux Sélectionnés",
+    keyEventsAndSequence: "Événements Clés et Séquence",
+    comparativeAnalysis: "Analyse Comparative",
+    detectedObjects: "Objets détectés",
+    identifiedRisks: "Risques identifiés",
+    coordinates: "Coordonnées",
+    noInconsistenciesDetected: "Aucune incohérence détectée dans le rapport",
+    severityCritical: "Critique",
+    severityHigh: "Élevée",
+    severityMedium: "Moyen",
+    severityLow: "Faible",
   },
 }
 
@@ -202,7 +302,7 @@ export default function IncidentDetailPage() {
   const [audioFile, setAudioFile] = useState<IMultimedia | null>(null)
   const [photos, setPhotos] = useState<IMultimedia[]>([])
   const params = useParams<{id: string}>()
-  const [language, setLanguage] = useState<"en" | "es">("en")
+  const [language, setLanguage] = useState<Language>("fr")
   const t = translations[language]
   const [isPlayingAudio, setIsPlayingAudio] = useState(false)
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
@@ -211,10 +311,26 @@ export default function IncidentDetailPage() {
   const [duration, setDuration] = useState(0);
   const GOOGLE_MAP_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
+  const getAIAnalysis = (inc: IIncident | null, lang: "en" | "es" | "fr") => {
+    if (!inc?.ai_analysis) return null
+    const analysisKey = `ai_analysis_${lang}` as keyof typeof inc.ai_analysis
+    return (inc.ai_analysis as any)?.[analysisKey] || null
+  }
+
+  const getSeverityLabel = (severity: string | undefined): string => {
+    if (severity === "3") return t.severityHigh
+    if (severity === "2") return t.severityMedium
+    if (severity === "1") return t.severityLow
+    return ""
+  }
+
+  const currentAIAnalysis = getAIAnalysis(incident, language)
+
   useEffect(() => {
     const lang = urlSearchParams.get("lang")
-    if (lang == "en" || lang == "es")
-      setLanguage(lang)
+    if (LANGUAGES.includes(lang as Language)) {
+      setLanguage(lang as Language);
+    }
   }, [router, urlSearchParams]);
 
   useEffect(() => {
@@ -224,6 +340,7 @@ export default function IncidentDetailPage() {
         const response = await getIncidentsById(params.id)
         if (response.data) {
           setIncident(response.data)
+          
           const audios = response.data.multimedias.filter((m) => m.cod_tipo_multimedia === "COD_AUDIO")
           if (audios.length > 0) {
             setAudioFile(audios[0])
@@ -240,244 +357,6 @@ export default function IncidentDetailPage() {
     if (params.id)
       loadIncident() 
   }, []);
-
-  const getIncidentData = (id: string, language: "en" | "es") => {
-    const baseIncident = {
-      id: id,
-      title: language === "en" ? "Water leak in main warehouse" : "Fuga de agua en almacén principal",
-      status: language === "en" ? "In Progress" : "En Progreso",
-      severity: language === "en" ? "Medium" : "Media",
-      description:
-        language === "en"
-          ? "A water leak was detected in the main warehouse affecting the product storage area. Immediate intervention from the maintenance team is required."
-          : "Se detectó una fuga de agua en el almacén principal que está afectando el área de almacenamiento de productos. Se requiere intervención inmediata del equipo de mantenimiento.",
-      location: language === "en" ? "Main Warehouse - Sector B" : "Almacén Principal - Sector B",
-      reporter: language === "en" ? "John Smith" : "Juan Pérez",
-      date: "2025-01-15",
-      time: "09:00 AM",
-      team: language === "en" ? "Maintenance Team" : "Equipo de Mantenimiento",
-      audioDuration: "2:34",
-      photos: ["/warehouse-incident-floor.jpg", "/safety-equipment-area.jpg", "/workplace-incident-scene.jpg"],
-      coordinates: { lat: 40.7128, lng: -74.006 },
-      timeline: [
-        {
-          time: "09:00",
-          action: language === "en" ? "Incident reported" : "Incidente reportado",
-          status: "completed",
-        },
-        {
-          time: "09:15",
-          action: language === "en" ? "Maintenance team notified" : "Equipo de mantenimiento notificado",
-          status: "completed",
-        },
-        {
-          time: "09:30",
-          action: language === "en" ? "Inspection in progress" : "Inspección en progreso",
-          status: "in-progress",
-        },
-        {
-          time: "10:00",
-          action: language === "en" ? "Repair scheduled" : "Reparación programada",
-          status: "pending",
-        },
-      ],
-      keyEvents: [
-        {
-          time: "08:45",
-          description:
-            language === "en"
-              ? "Worker detects moisture on warehouse floor"
-              : "Trabajador detecta humedad en el piso del almacén",
-        },
-        {
-          time: "08:50",
-          description:
-            language === "en"
-              ? "Leak source identified in main pipe"
-              : "Se identifica la fuente de la fuga en tubería principal",
-        },
-        {
-          time: "09:00",
-          description: language === "en" ? "Incident reported to supervisor" : "Se reporta el incidente al supervisor",
-        },
-        {
-          time: "09:15",
-          description: language === "en" ? "Maintenance team dispatched" : "Equipo de mantenimiento es despachado",
-        },
-      ],
-      causeTree: {
-        observedFacts:
-          language === "en"
-            ? ["Visible leak in water pipe", "Water accumulation in sector B", "Visible corrosion at connection joint"]
-            : [
-                "Fuga visible en tubería de agua",
-                "Acumulación de agua en sector B",
-                "Corrosión visible en la junta de conexión",
-              ],
-        immediateFactors:
-          language === "en"
-            ? ["Material wear due to age", "Excessive pipe pressure", "Lack of recent preventive maintenance"]
-            : [
-                "Desgaste de material por antigüedad",
-                "Presión excesiva en tubería",
-                "Falta de mantenimiento preventivo reciente",
-              ],
-        underlyingCauses:
-          language === "en"
-            ? [
-                "Pipe system over 15 years old without renewal",
-                "No regular inspection program",
-                "Lack of budget for preventive maintenance",
-              ]
-            : [
-                "Sistema de tuberías con más de 15 años sin renovación",
-                "No hay programa de inspección regular",
-                "Falta de presupuesto para mantenimiento preventivo",
-              ],
-      },
-      aiAnalysis: {
-        summary:
-          language === "en"
-            ? "Water leak detected in warehouse main pipe. Risk level: Medium. Immediate action recommended to avoid material damage."
-            : "Fuga de agua detectada en tubería principal del almacén. Nivel de riesgo: Medio. Se recomienda acción inmediata para evitar daños materiales.",
-        inconsistencies:
-          language === "en" ? "No inconsistencies detected in report" : "Ninguna inconsistencia detectada en el reporte",
-        recommendations: [
-          language === "en"
-            ? "Conduct comprehensive safety audit of the affected area within 48 hours"
-            : "Realizar auditoría integral de seguridad del área afectada dentro de 48 horas",
-          language === "en"
-            ? "Implement refresher training program for all personnel involved in similar operations"
-            : "Implementar programa de capacitación de actualización para todo el personal involucrado en operaciones similares",
-          language === "en"
-            ? "Schedule monthly safety reviews for the next quarter to monitor improvements"
-            : "Programar revisiones mensuales de seguridad para el próximo trimestre para monitorear mejoras",
-        ],
-      },
-      similarCases: [
-        {
-          id: "245",
-          description:
-            language === "en" ? "Equipment failure in production area" : "Falla de equipo en área de producción",
-          similarity: "87%",
-          resolutionTime: "4",
-          status: language === "en" ? "Resolved" : "Resuelto",
-        },
-        {
-          id: "198",
-          description: language === "en" ? "Safety protocol violation" : "Violación de protocolo de seguridad",
-          similarity: "72%",
-          resolutionTime: "6",
-          status: language === "en" ? "Resolved" : "Resuelto",
-        },
-        {
-          id: "156",
-          description:
-            language === "en"
-              ? "Communication breakdown during shift change"
-              : "Falla de comunicación durante cambio de turno",
-          similarity: "68%",
-          resolutionTime: "5",
-          status: language === "en" ? "Resolved" : "Resuelto",
-        },
-      ],
-      actionsTaken: [
-        {
-          action: language === "en" ? "Immediate Area Isolation" : "Aislamiento Inmediato del Área",
-          effectivenessRate: "94%",
-        },
-        {
-          action: language === "en" ? "Team Debriefing Session" : "Sesión de Análisis en Equipo",
-          effectivenessRate: "89%",
-        },
-        {
-          action: language === "en" ? "Full Equipment Inspection" : "Inspección Completa de Equipos",
-          effectivenessRate: "92%",
-        },
-        {
-          action:
-            language === "en" ? "Procedure Documentation Update" : "Actualización de Documentación de Procedimientos",
-          effectivenessRate: "87%",
-        },
-      ],
-      country: language === "en" ? "Argentina" : "Argentina",
-      state: language === "en" ? "Buenos Aires" : "Buenos Aires",
-      involvedPeople: [
-        {
-          name: "Juan Pérez",
-          position: language === "en" ? "Warehouse Supervisor" : "Supervisor de Almacén",
-        },
-        {
-          name: "María González",
-          position: language === "en" ? "Safety Officer" : "Oficial de Seguridad",
-        },
-        {
-          name: "Carlos Rodríguez",
-          position: language === "en" ? "Maintenance Technician" : "Técnico de Mantenimiento",
-        },
-      ],
-      // Dummy data for people to match the share modal logic
-      people: [
-        {
-          firstName: "Juan",
-          lastName: "Pérez",
-          role: language === "en" ? "Warehouse Supervisor" : "Supervisor de Almacén",
-        },
-        { firstName: "María", lastName: "González", role: language === "en" ? "Safety Officer" : "Oficial de Seguridad" },
-        {
-          firstName: "Carlos",
-          lastName: "Rodríguez",
-          role: language === "en" ? "Maintenance Technician" : "Técnico de Mantenimiento",
-        },
-      ],
-    }
-    return baseIncident
-  }
-
-  const photoAnalysis = [
-    {
-      description:
-        language === "es"
-          ? "Vista general de la zona del incidente con equipo de seguridad visible"
-          : "General view of the incident area with safety equipment visible",
-      objects:
-        language === "es"
-          ? ["Equipo de protección", "Señalización de seguridad", "Área acordonada", "Vehículo de emergencia"]
-          : ["Protective equipment", "Safety signage", "Cordoned area", "Emergency vehicle"],
-      risks:
-        language === "es"
-          ? ["Riesgo de caída desde altura", "Exposición a materiales peligrosos"]
-          : ["Risk of falling from height", "Exposure to hazardous materials"],
-    },
-    {
-      description:
-        language === "es"
-          ? "Detalle del área afectada mostrando daños estructurales"
-          : "Detail of affected area showing structural damage",
-      objects:
-        language === "es"
-          ? ["Estructura dañada", "Escombros", "Herramientas de rescate", "Iluminación de emergencia"]
-          : ["Damaged structure", "Debris", "Rescue tools", "Emergency lighting"],
-      risks:
-        language === "es"
-          ? ["Colapso estructural inminente", "Obstrucción de vías de escape"]
-          : ["Imminent structural collapse", "Escape route obstruction"],
-    },
-    {
-      description:
-        language === "es"
-          ? "Personal de respuesta evaluando la situación en el sitio"
-          : "Response personnel assessing the situation on site",
-      objects:
-        language === "es"
-          ? ["Personal de emergencia", "Equipos de comunicación", "Botiquín de primeros auxilios", "Casco de seguridad"]
-          : ["Emergency personnel", "Communication equipment", "First aid kit", "Safety helmet"],
-      risks:
-        language === "es"
-          ? ["Posible contaminación del área", "Riesgo eléctrico"]
-          : ["Possible area contamination", "Electrical hazard"],
-    },
-  ]
 
   const nextPhoto = () => {
     setCurrentPhotoIndex((prev) => (prev + 1) % photos.length)
@@ -524,32 +403,6 @@ export default function IncidentDetailPage() {
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
-
-  const audioTranscription =
-    language === "en"
-      ? "I was working on the third floor when I heard a loud crash. The scaffolding started to shake violently. I immediately called for help and evacuated the area. There was debris falling everywhere and I could smell something burning. The emergency alarm started going off about a minute later."
-      : "Estaba trabajando en el tercer piso cuando escuché un fuerte estruendo. El andamio comenzó a temblar violentamente. Inmediatamente pedí ayuda y evacuamos el área. Había escombros cayendo por todas partes y podía oler algo quemándose. La alarma de emergencia comenzó a sonar aproximadamente un minuto después."
-
-  const sentimentAnalysis = {
-    overall: language === "en" ? "Highly Concerned" : "Muy Preocupado",
-    emotions: [
-      { emotion: language === "en" ? "Fear" : "Miedo", percentage: 45, color: "bg-red-500" },
-      { emotion: language === "en" ? "Urgency" : "Urgencia", percentage: 35, color: "bg-orange-500" },
-      { emotion: language === "en" ? "Stress" : "Estrés", percentage: 20, color: "bg-yellow-500" },
-    ],
-    tone: language === "en" ? "Professional and Direct" : "Profesional y Directo",
-    confidence: "92%",
-  }
-
-  const updatedTranslations = {
-    ...t,
-    audioTranscription: language === "en" ? "Audio Transcription" : "Transcripción de Audio",
-    sentimentAnalysis: language === "en" ? "AI Sentiment Analysis" : "Análisis de Sentimiento IA",
-    overallSentiment: language === "en" ? "Overall Sentiment" : "Sentimiento General",
-    detectedEmotions: language === "en" ? "Detected Emotions" : "Emociones Detectadas",
-    tone: language === "en" ? "Tone" : "Tono",
-    confidence: language === "en" ? "Confidence" : "Confianza",
-  }
 
   const handleShare = () => {
     setShareModalOpen(true)
@@ -638,6 +491,54 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
     }
   }
 
+  const getDetailAnalizeImage = (currentPhotoIndex:number) => {
+    if (!incident?.image_analysis && photos.length <= 0) return null
+    const key = `image_analysis_${language}`;
+    const current_image_analysis = incident?.image_analysis?.[key] ?? null;
+    let images_objects:any = null
+    let images_risks:any = null
+
+    if (current_image_analysis) {
+      const indexOb = current_image_analysis?.images_objects?.findIndex((io:any) => io.image_url === photos[currentPhotoIndex].url)
+      images_objects = indexOb >=0 ? current_image_analysis?.images_objects[indexOb] : null
+
+      const indexRisk = current_image_analysis?.images_risks?.findIndex((io:any) => io.image_url === photos[currentPhotoIndex].url)
+      images_risks = indexRisk >=0 ? current_image_analysis?.images_risks[indexRisk] : null
+    }
+
+    if (!images_objects && !images_risks) return null
+
+    return (
+    <div className="mt-4 space-y-3 text-sm">
+      {/* <div>
+        <p className="text-slate-700 italic">{photoAnalysis[currentPhotoIndex].description}</p>
+      </div> */}
+
+      <div>
+        <h4 className="font-semibold text-slate-900 mb-1">
+          {language === "es" ? "Objetos detectados:" : "Detected objects:"}
+        </h4>
+        <ul className="list-disc list-inside space-y-1 text-slate-600">
+          {images_objects?.detected_objects?.map((obj:any, idx:number) => (
+            <li key={idx}>{obj.description}</li>
+          ))}
+        </ul>
+      </div>
+
+      <div>
+        <h4 className="font-semibold text-red-700 mb-1">
+          {language === "es" ? "Riesgos identificados:" : "Identified risks:"}
+        </h4>
+        <ul className="list-disc list-inside space-y-1 text-red-600">
+          {images_risks?.detected_risks?.map((risk:any, idx:number) => (
+            <li key={idx}>{risk.description}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-8">
       {isLoading && (
@@ -648,7 +549,7 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <Button type="button" variant="outline" onClick={() => router.push("/incidents")} className="gap-2 cursor-pointer">
+          <Button type="button" variant="outline" onClick={() => router.push(`/incidents/?lang=${language}`)} className="gap-2 cursor-pointer">
             <ArrowLeft className="h-4 w-4" />
             {t.backButton}
           </Button>
@@ -662,17 +563,24 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
             <div className="flex gap-2">
               <button
                 onClick={() => setLanguage("en")}
-                className={`text-2xl transition-opacity ${language === "en" ? "opacity-100" : "opacity-40 hover:opacity-70"}`}
+                className={`text-2xl transition-opacity ${language === "en" ? "opacity-100" : "opacity-40 hover:opacity-70"} cursor-pointer`}
                 title="English"
               >
                 🇺🇸
               </button>
               <button
                 onClick={() => setLanguage("es")}
-                className={`text-2xl transition-opacity ${language === "es" ? "opacity-100" : "opacity-40 hover:opacity-70"}`}
+                className={`text-2xl transition-opacity ${language === "es" ? "opacity-100" : "opacity-40 hover:opacity-70"} cursor-pointer`}
                 title="Español"
               >
                 🇪🇸
+              </button>
+              <button
+                onClick={() => setLanguage("fr")}
+                className={`text-2xl transition-opacity ${language === "fr" ? "opacity-100" : "opacity-40 hover:opacity-70"} cursor-pointer`}
+                title="Français"
+              >
+                🇫🇷
               </button>
             </div>
           </div>
@@ -681,28 +589,30 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
         {/* Combined Incident Info and Photo Carousel */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
           {/* Incident Information Panel - 60% */}
-          <Card className="bg-white/80 backdrop-blur-sm lg:col-span-3">
+          <Card className={`bg-white/80 backdrop-blur-sm ${
+              photos.length > 0 ? "lg:col-span-3" : "lg:col-span-5"
+            }`}>
             <CardContent className="pt-6">
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
                 <div>
                   <div className="flex items-center gap-3 mb-2">
-                    <h1 className="text-2xl md:text-3xl font-bold text-slate-900">#{incident?.id}</h1>
+                    <h1 className="text-2xl md:text-3xl font-bold text-slate-900">#{incident?.id.substring(0,10)}</h1>
                     <Badge variant="secondary" className="text-sm">
                       {incident?.status}
                     </Badge>
                   </div>
-                  <h2 className="text-4xl font-bold text-slate-900 mb-4">{incident?.title}</h2>
+                  <h2 className="text-4xl font-bold text-slate-900 mb-4">{currentAIAnalysis?.aiHeader?.title || incident?.title}</h2>
                 </div>
                 <Badge
                   variant={
-                    incident?.severity === "Alta" || incident?.severity === "High"
+                    currentAIAnalysis?.aiHeader?.severity === "3"
                       ? "destructive"
-                      : incident?.severity === "Media" || incident?.severity === "Medium"
+                      : currentAIAnalysis?.aiHeader?.severity === "2"
                         ? "default"
-                        : "secondary"
+                        : "success"
                   }
                 >
-                  {t.severity}: {incident?.severity}
+                  {t.severity}: {getSeverityLabel(currentAIAnalysis?.aiHeader?.severity)}
                 </Badge>
               </div>
 
@@ -740,7 +650,7 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
                   <Users className="h-5 w-5" />
                   <div>
                     <p className="text-xs text-slate-500">{t.teamInvolved}</p>
-                    <p className="text-sm font-medium">{incident?.ai_analysis?.aiHeader?.involved_equipment ? incident?.ai_analysis?.aiHeader?.involved_equipment[0] : ""}</p>
+                    <p className="text-sm font-medium">{currentAIAnalysis?.aiHeader?.involved_equipment ? currentAIAnalysis?.aiHeader?.involved_equipment[0] : ""}</p>
                   </div>
                 </div>
               </div>
@@ -752,13 +662,13 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
                   {t.involvedPeople}
                 </h3>
                 <div className="space-y-2">
-                  {incident?.ai_analysis?.aiHeader?.involved_people?.map((person:any, index:number) => (
+                  {currentAIAnalysis?.aiHeader?.involved_people?.map((person:any, index:number) => (
                     <div key={index} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
                         <User className="h-5 w-5 text-blue-600" />
                       </div>
                       <div>
-                        <p className="font-medium text-slate-900">{person}</p>
+                        <p className="font-normal text-normal text-slate-900">{person}</p>
                         {/* <p className="text-sm text-slate-600">{person.position}</p> */}
                       </div>
                     </div>
@@ -769,7 +679,7 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
               {/* Description */}
               <div>
                 <h3 className="text-lg font-semibold text-slate-900 mb-2">{t.description}</h3>
-                <p className="text-slate-600 leading-relaxed">{incident?.description}</p>
+                <p className="text-slate-600 leading-relaxed">{currentAIAnalysis?.aiHeader?.description || incident?.description}</p>
               </div>
             </CardContent>
           </Card>
@@ -822,33 +732,9 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
               </div>
 
               {/* AI-extracted information below the photo */}
-              <div className="mt-4 space-y-3 text-sm">
-                <div>
-                  <p className="text-slate-700 italic">{photoAnalysis[currentPhotoIndex].description}</p>
-                </div>
-
-                <div>
-                  <h4 className="font-semibold text-slate-900 mb-1">
-                    {language === "es" ? "Objetos detectados:" : "Detected objects:"}
-                  </h4>
-                  <ul className="list-disc list-inside space-y-1 text-slate-600">
-                    {photoAnalysis[currentPhotoIndex].objects.map((obj, idx) => (
-                      <li key={idx}>{obj}</li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div>
-                  <h4 className="font-semibold text-red-700 mb-1">
-                    {language === "es" ? "Riesgos identificados:" : "Identified risks:"}
-                  </h4>
-                  <ul className="list-disc list-inside space-y-1 text-red-600">
-                    {photoAnalysis[currentPhotoIndex].risks.map((risk, idx) => (
-                      <li key={idx}>{risk}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
+              {
+                getDetailAnalizeImage(currentPhotoIndex)
+              }
             </CardContent>
           </Card>)}
         </div>
@@ -879,7 +765,7 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
                 </div>
                 <div>
                   <h4 className="font-medium text-slate-900 mb-2">
-                    {language === "en" ? "Coordinates" : "Coordenadas"}
+                    {t.coordinates}
                   </h4>
                   <p className="text-sm text-slate-600">
                     Lat: {incident?.location?.lat.toFixed(6)}° N<br />
@@ -904,8 +790,8 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
 
         {/* AI Analysis */}
         <Card className="mb-6 bg-white/80 backdrop-blur-sm">
-          <CardHeader className="bg-gradient-to-r from-purple-100 to-pink-100">
-            <CardTitle className="flex items-center gap-2">
+          <CardHeader className="bg-gradient-to-r from-purple-100 to-pink-100 gap-0">
+            <CardTitle className="flex items-center gap-2 p-2">
               <Brain className="h-5 w-5 text-purple-600" />
               {t.aiAnalysis}
             </CardTitle>
@@ -913,7 +799,7 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
           <CardContent className="space-y-4 pt-6">
             <div>
               <h4 className="font-medium text-slate-900 mb-2">{t.summary}</h4>
-              <p className="text-slate-600">{incident?.ai_analysis?.aiHeader?.summary}</p>
+              <p className="text-slate-600">{currentAIAnalysis?.aiHeader?.summary}</p>
             </div>
 
             <div>
@@ -978,15 +864,15 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
 
             <div>
               <h4 className="font-medium text-slate-900 mb-2">{t.inconsistencies}</h4>
-              <p className="text-slate-600">{incident?.ai_analysis?.inconsistencies || (language === "en" ? "No inconsistencies detected in report" : "Ninguna inconsistencia detectada en el reporte")}</p>
+              <p className="text-slate-600">{currentAIAnalysis?.inconsistencies || t.noInconsistenciesDetected}</p>
             </div>
             <div>
               <h4 className="font-medium text-slate-900 mb-2">{t.recommendations}</h4>
               <ul className="space-y-2">
-                {incident?.ai_analysis?.aiRecommendations?.map((rec:any, index:number) => (
+                {currentAIAnalysis?.aiRecommendations?.map((rec:any, index:number) => (
                   <li key={index} className="flex items-start gap-2">
                     <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                    <span className="text-slate-600">{rec.description}</span>
+                    <span className="text-slate-600">{typeof rec === 'string' ? rec : rec?.description}</span>
                   </li>
                 ))}
               </ul>
@@ -994,25 +880,25 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
 
             {/* Audio Transcription Section */}
             <div>
-              <h4 className="font-medium text-slate-900 mb-2">{updatedTranslations.audioTranscription}</h4>
+              <h4 className="font-medium text-slate-900 mb-2">{t.audioTranscription}</h4>
               <div className="bg-slate-50 rounded-lg p-4">
-                <p className="text-slate-700 italic leading-relaxed">&ldquo;{incident?.ai_analysis?.transcription}&rdquo;</p>
+                <p className="text-slate-700 italic leading-relaxed">&ldquo;{currentAIAnalysis?.transcription}&rdquo;</p>
               </div>
             </div>
 
             {/* Sentiment Analysis Section */}
             <div>
-              <h4 className="font-medium text-slate-900 mb-3">{updatedTranslations.sentimentAnalysis}</h4>
+              <h4 className="font-medium text-slate-900 mb-3">{t.sentimentAnalysis}</h4>
               <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-lg p-4 space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-600">{updatedTranslations.overallSentiment}:</span>
-                  <span className="font-semibold text-slate-900">{incident?.ai_analysis?.aiSentimentAnalysis?.overallSentiment}</span>
+                  <span className="text-sm text-slate-600">{t.overallSentiment}:</span>
+                  <span className="font-semibold text-slate-900">{currentAIAnalysis?.aiSentimentAnalysis?.overallSentiment}</span>
                 </div>
 
                 <div>
-                  <p className="text-sm text-slate-600 mb-2">{updatedTranslations.detectedEmotions}:</p>
+                  <p className="text-sm text-slate-600 mb-2">{t.detectedEmotions}:</p>
                   <div className="space-y-2">
-                    {incident?.ai_analysis?.aiSentimentAnalysis?.detectedEmotions.map((item:any, idx:number) => {
+                    {currentAIAnalysis?.aiSentimentAnalysis?.detectedEmotions?.map((item:any, idx:number) => {
                       const color =
                         EMOTIONS_COLOR[item.emotion]?.color ?? "bg-slate-400";
 
@@ -1036,12 +922,12 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
 
                 <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-200">
                   <div>
-                    <span className="text-sm text-slate-600">{updatedTranslations.tone}:</span>
-                    <p className="font-medium text-slate-900">{incident?.ai_analysis?.aiSentimentAnalysis?.tone}</p>
+                    <span className="text-sm text-slate-600">{t.tone}:</span>
+                    <p className="font-medium text-slate-900">{currentAIAnalysis?.aiSentimentAnalysis?.tone}</p>
                   </div>
                   <div>
-                    <span className="text-sm text-slate-600">{updatedTranslations.confidence}:</span>
-                    <p className="font-medium text-slate-900">{incident?.ai_analysis?.aiSentimentAnalysis?.confidence}%</p>
+                    <span className="text-sm text-slate-600">{t.confidence}:</span>
+                    <p className="font-medium text-slate-900">{currentAIAnalysis?.aiSentimentAnalysis?.confidence}%</p>
                   </div>
                 </div>
               </div>
@@ -1051,8 +937,8 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
 
         {/* Key Events section */}
         <Card className="mb-6 bg-white/80 backdrop-blur-sm">
-          <CardHeader className="bg-gradient-to-r from-teal-100 to-cyan-100">
-            <CardTitle className="flex items-center gap-2">
+          <CardHeader className="bg-gradient-to-r from-teal-100 to-cyan-100 gap-0">
+            <CardTitle className="flex items-center gap-2 p-2">
               <ListOrdered className="h-5 w-5 text-teal-600" />
               {t.keyEventsAndSequence || (language === "en" ? "Key Events and Sequence" : "Eventos Clave y Secuencia")}
             </CardTitle>
@@ -1060,7 +946,7 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
           <CardContent className="pt-6">
             <p className="text-sm text-slate-600 mb-4">{t.keyEventsDesc}</p>
             <div className="space-y-3">
-              {incident?.ai_analysis?.aiSequence?.events.map((event:any, index:number) => (
+              {currentAIAnalysis?.aiSequence?.events?.map((event:any, index:number) => (
                 <div key={index} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
                   <div className="flex-shrink-0 w-16 text-sm font-semibold text-blue-600">#{index + 1}</div>
                   <div className="flex-1 text-slate-700">{event.event}</div>
@@ -1072,8 +958,8 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
 
         {/* Cause Tree section */}
         <Card className="mb-6 bg-white/80 backdrop-blur-sm">
-          <CardHeader className="bg-gradient-to-r from-amber-100 to-yellow-100">
-            <CardTitle className="flex items-center gap-2">
+          <CardHeader className="bg-gradient-to-r from-amber-100 to-yellow-100 gap-0">
+            <CardTitle className="flex items-center gap-2 p-2">
               <GitBranch className="h-5 w-5 text-amber-600" />
               {t.causeTree || (language === "en" ? "Cause Tree" : "Árbol de Causas")}
             </CardTitle>
@@ -1086,7 +972,7 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
                 {t.observedFacts}
               </h4>
               <ul className="space-y-2 ml-4">
-                {incident?.causeTree?.observedFacts?.map((fact:any, index:number) => (
+                {currentAIAnalysis?.aiHeader?.involved_equipment?.map((fact:any, index:number) => (
                   <li key={index} className="flex items-start gap-2 text-slate-700">
                     <span className="text-red-500 font-bold mt-1">•</span>
                     <span>{fact}</span>
@@ -1102,7 +988,7 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
                 {t.immediateFactors}
               </h4>
               <ul className="space-y-2 ml-4">
-                {incident?.causeTree?.immediateFactors?.map((factor:any, index:number) => (
+                {currentAIAnalysis?.aiHeader?.involved_people?.map((factor:any, index:number) => (
                   <li key={index} className="flex items-start gap-2 text-slate-700">
                     <span className="text-orange-500 font-bold mt-1">•</span>
                     <span>{factor}</span>
@@ -1118,10 +1004,10 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
                 {t.underlyingCauses}
               </h4>
               <ul className="space-y-2 ml-4">
-                {incident?.causeTree?.underlyingCauses?.map((cause:any, index:number) => (
+                {currentAIAnalysis?.aiRecommendations?.map((cause:any, index:number) => (
                   <li key={index} className="flex items-start gap-2 text-slate-700">
                     <span className="text-purple-500 font-bold mt-1">•</span>
-                    <span>{cause}</span>
+                    <span>{typeof cause === 'string' ? cause : cause?.description}</span>
                   </li>
                 ))}
               </ul>
@@ -1131,8 +1017,8 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
 
         {/* Comparative Analysis */}
         <Card className="bg-white/80 backdrop-blur-sm mb-6">
-          <CardHeader className="bg-gradient-to-r from-violet-100 to-purple-100">
-            <CardTitle className="flex items-center gap-2">
+          <CardHeader className="bg-gradient-to-r from-violet-100 to-purple-100 gap-0">
+            <CardTitle className="flex items-center gap-2 p-2">
               <BarChart3 className="h-5 w-5 text-violet-600" />
               {t.comparativeAnalysis || (language === "en" ? "Comparative Analysis" : "Análisis Comparativo")}
             </CardTitle>
@@ -1143,12 +1029,12 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
               <div>
                 <h3 className="text-lg font-semibold text-slate-900 mb-4">{t.similarCases}</h3>
                 <div className="space-y-4">
-                  {incident?.similarCases?.map((caseItem, index) => (
+                  {currentAIAnalysis?.aiHeader?.similar_cases?.map((caseItem: any, index: any) => (
                     <div key={index} className="border-l-4 border-blue-500 pl-4 py-2 bg-blue-50/50">
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <p className="font-medium text-slate-900">
-                            {t.case} #{caseItem.id}
+                            {t.case} #{caseItem.id.substring(0,10)}
                           </p>
                           <p className="text-sm text-slate-600">{caseItem.description}</p>
                         </div>
@@ -1160,9 +1046,11 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
                         <p className="mb-1">
                           <span className="font-medium">{t.similarity}:</span> {caseItem.similarity}%
                         </p>
-                        <p>
-                          <span className="font-medium">{t.resolutionTime}:</span> {caseItem.resolutionTime} {t.hours}
-                        </p>
+                        {caseItem.average_resolution_time_days && (
+                          <p>
+                            <span className="font-medium">{t.resolutionTime}:</span> {caseItem.average_resolution_time_days} {t.hours}
+                          </p>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1170,7 +1058,7 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
               </div>
 
               {/* Actions Taken in Similar Cases */}
-              <div>
+              <div className="hidden">
                 <h3 className="text-lg font-semibold text-slate-900 mb-4">{t.actionsTaken}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {incident?.actionsTaken?.map((action, index) => (
@@ -1194,9 +1082,9 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
         </Card>
 
         {/* Timeline */}
-        <Card className="mb-6 bg-white/80 backdrop-blur-sm">
-          <CardHeader className="bg-gradient-to-r from-rose-100 to-red-100">
-            <CardTitle className="flex items-center gap-2">
+        <Card className="mb-6 bg-white/80 backdrop-blur-sm hidden">
+          <CardHeader className="bg-gradient-to-r from-rose-100 to-red-100 gap-0">
+            <CardTitle className="flex items-center gap-2 p-2">
               <Clock className="h-5 w-5 text-rose-600" />
               {t.timeline}
             </CardTitle>
@@ -1282,14 +1170,14 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
                 <div className="bg-white border border-t-0 rounded-b-lg p-4">
                   <span
                     className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${
-                      incident?.severity === "Critical"
+                      currentAIAnalysis?.aiHeader?.severity === "3"
                         ? "bg-red-100 text-red-800"
-                        : incident?.severity === "High"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : "bg-green-100 text-green-800"
+                        : currentAIAnalysis?.aiHeader?.severity === "1"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-yellow-100 text-yellow-800"
                     }`}
                   >
-                    {incident?.severity}
+                    {getSeverityLabel(currentAIAnalysis?.aiHeader?.severity)}
                   </span>
                 </div>
               </div>
@@ -1335,9 +1223,9 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
                 </div>
                 <div className="bg-white border border-t-0 rounded-b-lg p-4">
                   <ul className="space-y-1 list-disc list-inside">
-                    {incident?.ai_analysis?.aiRecommendations?.map((rec:any, idx:number) => (
+                    {currentAIAnalysis?.aiRecommendations?.map((rec:any, idx:number) => (
                       <li key={idx} className="text-sm">
-                        {rec.description}
+                        {typeof rec === 'string' ? rec : rec?.description}
                       </li>
                     ))}
                   </ul>

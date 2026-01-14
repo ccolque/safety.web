@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Mail, Plus, Upload, Mic, MapPin, X, Pause, Play, Square, Video, Camera } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Spinner } from "@/components/ui/spinner"
 import { getSeveritiesAll } from "@/services/severity-service"
 import { ISeverity } from "@/models/severity"
@@ -22,6 +22,7 @@ import { IMultimedia, Multimedia } from "@/models/multimedia"
 import { useToast } from "@/hooks/use-toast"
 import { getStatusAll } from "@/services/status-service"
 import { IStatus } from "@/models/status"
+import { Language, LANGUAGES } from "@/lib/constants"
 
 const translations = {
   en: {
@@ -59,7 +60,10 @@ const translations = {
     medium: "Medium",
     low: "Low",
     titleSucces: "Success",
-    success: "Data saved successfully"
+    success: "Data saved successfully",
+    severityHigh: "High",
+    severityMedium: "Medium",
+    severityLow: "Low",
   },
   es: {
     title: "Incidentes",
@@ -96,13 +100,57 @@ const translations = {
     medium: "Media",
     low: "Baja",
     titleSucces: "Éxito",
-    success: "Datos guardados correctamente"
+    success: "Datos guardados correctamente",
+    severityHigh: "Alta",
+    severityMedium: "Media",
+    severityLow: "Baja",
+  },
+  fr: {
+    title: "Incidents",
+    subtitle: "Système de gestion et de suivi des incidents",
+    tableId: "ID",
+    tableTitle: "Titre",
+    tableSeverity: "Gravité",
+    tableAction: "Action",
+    buttonView: "Voir",
+    buttonNew: "Nouvel Incident",
+    modalTitle: "Créer un Nouvel Incident",
+    fieldTitle: "Titre",
+    fieldDescription: "Description",
+    fieldDate: "Date",
+    fieldTime: "Heure",
+    fieldAudio: "Audio",
+    fieldVideo: "Vidéo",
+    fieldPhotos: "Photos",
+    fieldLocation: "Localisation",
+    uploadAudio: "Télécharger l'audio",
+    uploadVideo: "Télécharger la vidéo",
+    record: "Enregistrer",
+    stop: "Arrêter",
+    uploadPhotos: "Télécharger les photos",
+    selectLocation: "Sélectionner sur la carte",
+    confirmLocation: "Confirmer la Localisation",
+    selectedLocation: "Localisation Sélectionnée",
+    cancel: "Annuler",
+    create: "Créer Incident",
+    required: "obligatoire",
+    titlePlaceholder: "Entrez le titre de l'incident",
+    descriptionPlaceholder: "Décrivez l'incident en détail",
+    high: "Élevée",
+    medium: "Moyen",
+    low: "Faible",
+    titleSucces: "Succès",
+    success: "Données enregistrées avec succès",
+    severityHigh: "Élevée",
+    severityMedium: "Moyen",
+    severityLow: "Faible",
   },
 }
 
 export default function IncidentsPage() {
   const router = useRouter()
-  const [language, setLanguage] = useState<"en" | "es">("en")
+  const urlSearchParams = useSearchParams();
+  const [language, setLanguage] = useState<Language>("en")
   const t = translations[language]
   const { toast } = useToast()
 
@@ -137,9 +185,6 @@ export default function IncidentsPage() {
   const [photos, setPhotos] = useState<IMultimedia[]>([])
   const photoInputRef = useRef<any>(null)
 
-  // Video
-  const [video, setVideo] = useState<IMultimedia|null>(null)
-  const videoInputRef = useRef<any>(null)
 
   // Ubicación
   const [geocoder, setGeocoder] = useState<google.maps.Geocoder | null>(null)
@@ -163,6 +208,13 @@ export default function IncidentsPage() {
   const onUnmount = useCallback(() => {
     setMap(null)
   }, [])
+
+  useEffect(() => {
+    const lang = urlSearchParams.get("lang")
+    if (LANGUAGES.includes(lang as Language)) {
+      setLanguage(lang as Language);
+    }
+  }, [router, urlSearchParams]);
 
   const loadIncidents = async () => {
     try {
@@ -214,8 +266,79 @@ export default function IncidentsPage() {
 }, [])
 
 
+  const getTodayDate = (): string => {
+    const today = new Date()
+    const year = today.getFullYear()
+    const month = String(today.getMonth() + 1).padStart(2, '0')
+    const day = String(today.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const getCurrentTime = (): string => {
+    const now = new Date()
+    const hours = String(now.getHours()).padStart(2, '0')
+    const minutes = String(now.getMinutes()).padStart(2, '0')
+    return `${hours}:${minutes}`
+  }
+
+  const getCurrentLocation = (): Promise<void> => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        console.error("Geolocation no soportada")
+        resolve()
+        return
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords
+          setMarkerPosition({ lat: latitude, lng: longitude })
+          
+          const waitForGeocoder = setInterval(() => {
+            if (geocoder) {
+              clearInterval(waitForGeocoder)
+              geocoder.geocode(
+                { location: { lat: latitude, lng: longitude } },
+                (results, status) => {
+                  if (status === "OK" && results && results[0]) {
+                    const addressComponents = results[0].address_components
+                    const getComponent = (type: string) =>
+                      addressComponents.find(c => c.types.includes(type))?.long_name || ""
+
+                    const data = {
+                      country: getComponent("country"),
+                      city: getComponent("locality"),
+                      address: results[0].formatted_address,
+                      lat: latitude,
+                      lng: longitude
+                    }
+                    setLocation(data)
+                  }
+                  resolve()
+                }
+              )
+            }
+          }, 100)
+
+          setTimeout(() => {
+            clearInterval(waitForGeocoder)
+            resolve()
+          }, 5000)
+        },
+        (error) => {
+          console.error("Error obteniendo ubicación:", error)
+          resolve()
+        }
+      )
+    })
+  }
+
   useEffect(() => {
-    if (!isModalOpen){
+    if (isModalOpen){
+      setDate(getTodayDate())
+      setTime(getCurrentTime())
+      getCurrentLocation()
+    } else {
       resetForm()
     }      
   }, [isModalOpen])
@@ -335,25 +458,6 @@ export default function IncidentsPage() {
   };
 
 
-  // FUNCIONES DE VIDEO
-  const handleVideoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (files && files.length > 0) {
-      const file = files[0]
-      const videoF = newMultimedia(video, file, "COD_VIDEO")
-      setVideo(videoF)
-    } else {
-      console.log("No se seleccionó ningún archivo")
-    }
-  }
-
-  const removeVideo = () => {
-    setVideo(null)
-    if (videoInputRef.current) {
-      videoInputRef.current.value = ""
-    }
-  }
-
   // FUNCIONES DE FOTOS
   const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || [])
@@ -448,10 +552,19 @@ export default function IncidentsPage() {
     let multimedias: IMultimedia[] = []
 
     multimedias = [...multimedias, ...[audioFile]]
-    if (video) {
-      multimedias = [...multimedias, ...[video]]
-    }      
-    multimedias = [...multimedias, ...photos]    
+    multimedias = [...multimedias, ...photos]
+
+    // Preparar multimedias manteniendo el archivo pero sin otros campos auxiliares
+    const processedMultimedias = multimedias.map(m => {
+      const processed: any = {
+        id: "",
+        cod_tipo_multimedia: m.cod_tipo_multimedia,
+        file_name: m.file_name,
+        url: "",
+        file: m.file // Mantener el archivo para que se suba en FormData
+      }
+      return processed
+    })
 
     const incident: IIncident = {
       id: "",
@@ -459,7 +572,7 @@ export default function IncidentsPage() {
       description: description,
       date: date,
       time: time,
-      multimedias: multimedias,
+      multimedias: processedMultimedias as any,
       location: location,
       //Test fields
       // severity: severities[2],
@@ -468,175 +581,6 @@ export default function IncidentsPage() {
         id: "asd6664-sdasd-asd-asdsa-d",
         name: "John Smith"
       },
-      // team: language === "en" ? "Maintenance Team" : "Equipo de Mantenimiento",
-      // timeline: [
-      //   {
-      //     time: "09:00",
-      //     action: language === "en" ? "Incident reported" : "Incidente reportado",
-      //     status: "completed",
-      //   },
-      //   {
-      //     time: "09:15",
-      //     action: language === "en" ? "Maintenance team notified" : "Equipo de mantenimiento notificado",
-      //     status: "completed",
-      //   },
-      //   {
-      //     time: "09:30",
-      //     action: language === "en" ? "Inspection in progress" : "Inspección en progreso",
-      //     status: "in-progress",
-      //   },
-      //   {
-      //     time: "10:00",
-      //     action: language === "en" ? "Repair scheduled" : "Reparación programada",
-      //     status: "pending",
-      //   },
-      // ],
-      // keyEvents: [
-      //   {
-      //     time: "08:45",
-      //     description:
-      //       language === "en"
-      //         ? "Worker detects moisture on warehouse floor"
-      //         : "Trabajador detecta humedad en el piso del almacén",
-      //   },
-      //   {
-      //     time: "08:50",
-      //     description:
-      //       language === "en"
-      //         ? "Leak source identified in main pipe"
-      //         : "Se identifica la fuente de la fuga en tubería principal",
-      //   },
-      //   {
-      //     time: "09:00",
-      //     description: language === "en" ? "Incident reported to supervisor" : "Se reporta el incidente al supervisor",
-      //   },
-      //   {
-      //     time: "09:15",
-      //     description: language === "en" ? "Maintenance team dispatched" : "Equipo de mantenimiento es despachado",
-      //   },
-      // ],
-      // causeTree: {
-      //   observedFacts:
-      //     language === "en"
-      //       ? ["Visible leak in water pipe", "Water accumulation in sector B", "Visible corrosion at connection joint"]
-      //       : [
-      //           "Fuga visible en tubería de agua",
-      //           "Acumulación de agua en sector B",
-      //           "Corrosión visible en la junta de conexión",
-      //         ],
-      //   immediateFactors:
-      //     language === "en"
-      //       ? ["Material wear due to age", "Excessive pipe pressure", "Lack of recent preventive maintenance"]
-      //       : [
-      //           "Desgaste de material por antigüedad",
-      //           "Presión excesiva en tubería",
-      //           "Falta de mantenimiento preventivo reciente",
-      //         ],
-      //   underlyingCauses:
-      //     language === "en"
-      //       ? [
-      //           "Pipe system over 15 years old without renewal",
-      //           "No regular inspection program",
-      //           "Lack of budget for preventive maintenance",
-      //         ]
-      //       : [
-      //           "Sistema de tuberías con más de 15 años sin renovación",
-      //           "No hay programa de inspección regular",
-      //           "Falta de presupuesto para mantenimiento preventivo",
-      //         ],
-      // },
-      // aiAnalysis: {
-      //   summary:
-      //     language === "en"
-      //       ? "Water leak detected in warehouse main pipe. Risk level: Medium. Immediate action recommended to avoid material damage."
-      //       : "Fuga de agua detectada en tubería principal del almacén. Nivel de riesgo: Medio. Se recomienda acción inmediata para evitar daños materiales.",
-      //   inconsistencies:
-      //     language === "en" ? "No inconsistencies detected in report" : "Ninguna inconsistencia detectada en el reporte",
-      //   recommendations: [
-      //     language === "en"
-      //       ? "Conduct comprehensive safety audit of the affected area within 48 hours"
-      //       : "Realizar auditoría integral de seguridad del área afectada dentro de 48 horas",
-      //     language === "en"
-      //       ? "Implement refresher training program for all personnel involved in similar operations"
-      //       : "Implementar programa de capacitación de actualización para todo el personal involucrado en operaciones similares",
-      //     language === "en"
-      //       ? "Schedule monthly safety reviews for the next quarter to monitor improvements"
-      //       : "Programar revisiones mensuales de seguridad para el próximo trimestre para monitorear mejoras",
-      //   ],
-      // },
-      // similarCases: [
-      //   {
-      //     id: "245",
-      //     description:
-      //       language === "en" ? "Equipment failure in production area" : "Falla de equipo en área de producción",
-      //     similarity: "87%",
-      //     resolutionTime: "4",
-      //     status: language === "en" ? "Resolved" : "Resuelto",
-      //   },
-      //   {
-      //     id: "198",
-      //     description: language === "en" ? "Safety protocol violation" : "Violación de protocolo de seguridad",
-      //     similarity: "72%",
-      //     resolutionTime: "6",
-      //     status: language === "en" ? "Resolved" : "Resuelto",
-      //   },
-      //   {
-      //     id: "156",
-      //     description:
-      //       language === "en"
-      //         ? "Communication breakdown during shift change"
-      //         : "Falla de comunicación durante cambio de turno",
-      //     similarity: "68%",
-      //     resolutionTime: "5",
-      //     status: language === "en" ? "Resolved" : "Resuelto",
-      //   },
-      // ],
-      // actionsTaken: [
-      //   {
-      //     action: language === "en" ? "Immediate Area Isolation" : "Aislamiento Inmediato del Área",
-      //     effectivenessRate: "94%",
-      //   },
-      //   {
-      //     action: language === "en" ? "Team Debriefing Session" : "Sesión de Análisis en Equipo",
-      //     effectivenessRate: "89%",
-      //   },
-      //   {
-      //     action: language === "en" ? "Full Equipment Inspection" : "Inspección Completa de Equipos",
-      //     effectivenessRate: "92%",
-      //   },
-      //   {
-      //     action:
-      //       language === "en" ? "Procedure Documentation Update" : "Actualización de Documentación de Procedimientos",
-      //     effectivenessRate: "87%",
-      //   },
-      // ],
-      // involvedPeople: [
-      //   {
-      //     name: "Juan Pérez",
-      //     position: language === "en" ? "Warehouse Supervisor" : "Supervisor de Almacén",
-      //   },
-      //   {
-      //     name: "María González",
-      //     position: language === "en" ? "Safety Officer" : "Oficial de Seguridad",
-      //   },
-      //   {
-      //     name: "Carlos Rodríguez",
-      //     position: language === "en" ? "Maintenance Technician" : "Técnico de Mantenimiento",
-      //   },
-      // ],
-      // people: [
-      //   {
-      //     firstName: "Juan",
-      //     lastName: "Pérez",
-      //     role: language === "en" ? "Warehouse Supervisor" : "Supervisor de Almacén",
-      //   },
-      //   { firstName: "María", lastName: "González", role: language === "en" ? "Safety Officer" : "Oficial de Seguridad" },
-      //   {
-      //     firstName: "Carlos",
-      //     lastName: "Rodríguez",
-      //     role: language === "en" ? "Maintenance Technician" : "Técnico de Mantenimiento",
-      //   },
-      // ],
     }
 
     const response = await createIncident(incident)
@@ -659,7 +603,6 @@ export default function IncidentsPage() {
     setDate("")
     setTime("")
     deleteAudio()
-    removeVideo()
     setPhotos([])
     setLocation(null)
     setMarkerPosition(center)
@@ -675,16 +618,25 @@ export default function IncidentsPage() {
     )
   }
 
-  const getSeverityVariant = (severity: string): "destructive" | "default" | "secondary" => {
-    if (severity === "high") return "destructive"
-    if (severity === "medium") return "default"
+  const getSeverityVariant = (severity: string): "success" | "destructive" | "default" | "secondary" => {
+    if (severity === "3") return "destructive"
+    if (severity === "2" || severity === "medium") return "default"
+    if (severity === "1" || severity === "low") return "success"
     return "secondary"
   }
 
   const getSeverityLabel = (severity: string) => {
-    if (severity === "high") return t.high
-    if (severity === "medium") return t.medium
-    return t.low
+    if (severity === "3" || severity === "high") return t.severityHigh
+    if (severity === "2" || severity === "medium") return t.severityMedium
+    if (severity === "1" || severity === "low") return t.severityLow
+    return t.severityMedium
+  }
+
+  const getAIAnalysisSeverity = (incident: IIncident): string => {
+    if (!incident?.ai_analysis) return "medium"
+    const analysisKey = `ai_analysis_${language}` as keyof typeof incident.ai_analysis
+    const analysis = (incident.ai_analysis as any)?.[analysisKey]
+    return analysis?.aiHeader?.severity || "medium"
   }
 
   return (
@@ -715,6 +667,13 @@ export default function IncidentsPage() {
             >
               🇪🇸
             </button>
+            <button
+              onClick={() => setLanguage("fr")}
+              className={`text-2xl transition-opacity cursor-pointer ${language === "fr" ? "opacity-100" : "opacity-40 hover:opacity-70"}`}
+              title="Français"
+            >
+              🇫🇷
+            </button>
           </div>
         </div>
 
@@ -735,10 +694,21 @@ export default function IncidentsPage() {
                   className="hover:bg-slate-50 cursor-pointer"
                   onClick={() => handleViewIncident(incident.id)}
                 >
-                  <TableCell className="font-medium text-slate-900 py-4">#{incident.id}</TableCell>
-                  <TableCell className="text-slate-700 py-4">{incident.title}</TableCell>
+                  <TableCell className="font-medium text-slate-900 py-4">#{incident.id.substring(0,10)}</TableCell>
+                  <TableCell className="text-slate-700 py-4">
+                    {(() => {
+                      if (incident.ai_analysis) {
+                        const analysisKey = `ai_analysis_${language}`;
+                        const analysis = incident.ai_analysis[analysisKey];
+                        if (analysis && analysis.aiHeader && analysis.aiHeader.title) {
+                          return analysis.aiHeader.title;
+                        }
+                      }
+                      return incident.title;
+                    })()}
+                  </TableCell>
                   <TableCell className="py-4">
-                    <Badge variant={getSeverityVariant(incident.severity || "medium")}>{getSeverityLabel(incident.severity || "medium")}</Badge>
+                    <Badge variant={getSeverityVariant(getAIAnalysisSeverity(incident))}>{getSeverityLabel(getAIAnalysisSeverity(incident))}</Badge>
                   </TableCell>
                   <TableCell className="text-right py-4">
                     <div className="flex gap-2 justify-end">
@@ -912,43 +882,6 @@ export default function IncidentsPage() {
                   )}
                 </div>
               </div>
-
-              {/* Video */}
-              {/* <div>
-                <Label>Video</Label>
-                <div className="mt-2">
-                  {!video && (
-                    <Button
-                      type="button"
-                      onClick={() => videoInputRef.current?.click()}
-                      className="w-full"
-                      variant="outline"
-                    >
-                      <Video className="h-4 w-4 mr-2" />
-                      {t.uploadVideo}
-                    </Button>
-                  )}
-                  <input
-                    ref={videoInputRef}
-                    type="file"
-                    accept="video/*"
-                    onChange={handleVideoUpload}
-                    className="hidden"
-                  />
-
-                  {video && (
-                    <div className="bg-slate-50 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">{video.fileName}</span>
-                        <Button type="button" size="icon" variant="ghost" onClick={removeVideo}>
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <video src={video.url} controls className="w-full rounded-lg max-h-64" />
-                    </div>
-                  )}
-                </div>
-              </div> */}
 
               {/* Fotos */}
               <div>

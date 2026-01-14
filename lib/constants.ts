@@ -38,3 +38,7 @@ export const EMOTIONS_COLOR: Record<
   Urgencia: { color: "bg-orange-500" },
   Incertidumbre: { color: "bg-blue-400" }
 };
+
+export const LANGUAGES = ["en", "es", "fr"] as const;
+
+export type Language = typeof LANGUAGES[number];
