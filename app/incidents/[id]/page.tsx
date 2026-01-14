@@ -1016,6 +1016,7 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
         </Card>
 
         {/* Comparative Analysis */}
+        {currentAIAnalysis?.aiHeader?.similar_cases && (        
         <Card className="bg-white/80 backdrop-blur-sm mb-6">
           <CardHeader className="bg-gradient-to-r from-violet-100 to-purple-100 gap-0">
             <CardTitle className="flex items-center gap-2 p-2">
@@ -1079,7 +1080,7 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
               </div>
             </div>
           </CardContent>
-        </Card>
+        </Card>)}
 
         {/* Timeline */}
         <Card className="mb-6 bg-white/80 backdrop-blur-sm hidden">
