@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination"
 import { Mail, Plus, Upload, Mic, MapPin, X, Pause, Play, Square, Video, Camera } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Spinner } from "@/components/ui/spinner"
@@ -64,6 +65,8 @@ const translations = {
     severityHigh: "High",
     severityMedium: "Medium",
     severityLow: "Low",
+    paginationPrevious: "Previous",
+    paginationNext: "Next",
   },
   es: {
     title: "Incidentes",
@@ -104,6 +107,8 @@ const translations = {
     severityHigh: "Alta",
     severityMedium: "Media",
     severityLow: "Baja",
+    paginationPrevious: "Anterior",
+    paginationNext: "Siguiente",
   },
   fr: {
     title: "Incidents",
@@ -144,6 +149,8 @@ const translations = {
     severityHigh: "Élevée",
     severityMedium: "Moyen",
     severityLow: "Faible",
+    paginationPrevious: "Précédent",
+    paginationNext: "Suivant",
   },
 }
 
@@ -168,6 +175,10 @@ export default function IncidentsPage() {
   const [severities, setSeverities] = useState<ISeverity[]>([])
   const [status, setStatus] = useState<IStatus[]>([])
   const [incidents, setIncidents] = useState<IIncident[]>([])
+  
+  // Paginación
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   // Audio
   const [isRecording, setIsRecording] = useState(false)
@@ -216,11 +227,13 @@ export default function IncidentsPage() {
     }
   }, [router, urlSearchParams]);
 
-  const loadIncidents = async () => {
+  const loadIncidents = async (page: number = 1) => {
     try {
-      const response = await getIncidentsAll()
+      const skip = (page - 1) * itemsPerPage
+      const response = await getIncidentsAll(skip, itemsPerPage)
       if (response.data) {
         setIncidents(response.data)
+        setCurrentPage(page)
       }
     } catch (error) {
       console.error('Error al cargar incidents:', error)
@@ -588,7 +601,7 @@ export default function IncidentsPage() {
     if (response.data) {
       toast({ title: t.titleSucces, description: t.success, variant: "default"})
       resetForm()
-      loadIncidents()
+      loadIncidents(1)
       setIsModalOpen(false)
       setIsLoading(false)
     } else {
@@ -739,6 +752,36 @@ export default function IncidentsPage() {
             </TableBody>
           </Table>
         </div>
+
+        {incidents.length > 0 && (
+          <div className="flex justify-center mb-6">
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    onClick={() => currentPage > 1 && loadIncidents(currentPage - 1)}
+                    className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  >
+                    {t.paginationPrevious}
+                  </PaginationPrevious>
+                </PaginationItem>
+                <PaginationItem>
+                  <span className="text-sm text-gray-600 px-4 py-2">
+                    {currentPage}
+                  </span>
+                </PaginationItem>
+                <PaginationItem>
+                  <PaginationNext 
+                    onClick={() => incidents.length === itemsPerPage && loadIncidents(currentPage + 1)}
+                    className={incidents.length < itemsPerPage ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  >
+                    {t.paginationNext}
+                  </PaginationNext>
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        )}
 
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <DialogTrigger asChild>

@@ -2,11 +2,11 @@ import { apiClient } from '@/lib/api/client'
 import { IIncident } from '@/models/incidents'
 import { ApiResponse } from '@/types/api'
 /**
- * Obtiene todos los proyectos en una base
- * GET /incidents/all
+ * Obtiene todos los incidentes con paginación
+ * GET /incidents/all?skip=0&limit=10
  */
-export async function getIncidentsAll(): Promise<ApiResponse<IIncident[]>> {
-  const response = await apiClient.get('/incidents/all')
+export async function getIncidentsAll(skip: number = 0, limit: number = 10): Promise<ApiResponse<IIncident[]>> {
+  const response = await apiClient.get(`/incidents/all?skip=${skip}&limit=${limit}`)
   return {
     data: response.data as IIncident[],
     error: response.error,
