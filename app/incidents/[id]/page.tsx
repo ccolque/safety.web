@@ -16,30 +16,37 @@ import {
   Play,
   Pause,
   Users,
-  GitBranch,
   ChevronLeft,
   ChevronRight,
-  ImageIcon,
   Share2,
   Mail,
-  Brain,
-  BarChart3,
-  ListOrdered,
   FileText,
   Camera,
   AlertTriangle,
   Lightbulb,
+  ZoomIn,
+  ZoomOut,
+  Save,
+  Pencil,
+  X,
 } from "lucide-react"
 import { useState, useRef, useEffect } from "react"
 import { IIncident } from "@/models/incidents"
 import { IMultimedia } from "@/models/multimedia"
-import { getIncidentsById } from "@/services/incident-service"
+import { getIncidentsById, updateIncident } from "@/services/incident-service"
 import { Spinner } from "@/components/ui/spinner"
 import { EMOTIONS_COLOR, Language, LANGUAGES } from "@/lib/constants"
+import { CustomGoogleMap } from "@/components/custom-google-map"
+import { useToast } from "@/hooks/use-toast"
+import { CauseBranch } from "@/components/cause-tree"
+import { CausalBranches } from "@/models/analyzeRootCauses"
 
 const translations = {
   en: {
+    fieldRequired: "The {field} field is required",
+    fieldsRequired: "Complete all {field} fields",
     backButton: "Back to Incidents",
+    noData: "No data",
     shareButton: "Share",
     status: "Status",
     severity: "Severity",
@@ -48,7 +55,7 @@ const translations = {
     time: "Time",
     location: "Location",
     teamInvolved: "Team involved",
-    description: "Description",
+    description: "Problem Description",
     aiAnalysis: "AI Analysis",
     summary: "Summary",
     title: "Title",
@@ -107,12 +114,12 @@ const translations = {
     noContactsSelected: "Please select at least one contact",
     messageSent: "Message sent successfully!",
     incidentPhoto: "Incident Photo",
-    peopleInvolved: "People Involved", // Added for modal
-    selectWhatsAppContacts: "Select Contacts for WhatsApp", // Added for modal
-    selectEmailContacts: "Select Contacts for Email", // Added for modal
-    sendToSelected: "Send to Selected", // Added for modal
-    keyEventsAndSequence: "Key Events and Sequence", // Added for keyEvents card header
-    comparativeAnalysis: "Comparative Analysis", // Added for comparativeAnalysis card header
+    peopleInvolved: "People Involved",
+    selectWhatsAppContacts: "Select Contacts for WhatsApp",
+    selectEmailContacts: "Select Contacts for Email",
+    sendToSelected: "Send to Selected",
+    keyEventsAndSequence: "Key Events and Sequence",
+    comparativeAnalysis: "Comparative Analysis",
     detectedObjects: "Detected objects",
     identifiedRisks: "Identified risks",
     coordinates: "Coordinates",
@@ -121,9 +128,20 @@ const translations = {
     severityHigh: "High",
     severityMedium: "Medium",
     severityLow: "Low",
+    //Tre
+    type: "Type",
+    level: "Level",
+
+    status_pending_analysis: "Pending analysis",
+    status_reprocessing: "Reprocessing",
+    status_analysis_completed: "Completed",
+    status_analysis_failed: "Failed",
   },
   es: {
+    fieldRequired: "El campo {field} es obligatorio",
+    fieldsRequired: "Completa todos los campos de {field}",
     backButton: "Volver a Incidentes",
+    noData: "Sin datos",
     shareButton: "Compartir",
     status: "Estado",
     severity: "Gravedad",
@@ -132,7 +150,7 @@ const translations = {
     time: "Hora",
     location: "Ubicación",
     teamInvolved: "Equipo involucrado",
-    description: "Descripción",
+    description: "Descripción del problema",
     aiAnalysis: "Análisis de IA",
     summary: "Resumen",
     title: "Titulo",
@@ -207,9 +225,20 @@ const translations = {
     severityHigh: "Alta",
     severityMedium: "Media",
     severityLow: "Baja",
+    //Tree
+    type: "Tipo",
+    level: "Level",
+
+    status_pending_analysis: "Pendiente de análisis",
+    status_reprocessing: "Reprocesando",
+    status_analysis_completed: "Completado",
+    status_analysis_failed: "Fallido",
   },
   fr: {
+    fieldRequired: "Le champ {field} est obligatoire.",
+    fieldsRequired: "Remplissez tous les champs de {field}",
     backButton: "Retour aux Incidents",
+    noData: "Aucune donnée",
     shareButton: "Partager",
     status: "Statut",
     severity: "Gravité",
@@ -218,7 +247,7 @@ const translations = {
     time: "Heure",
     location: "Localisation",
     teamInvolved: "Équipe impliquée",
-    description: "Description",
+    description: "Description du problème",
     aiAnalysis: "Analyse IA",
     summary: "Résumé",
     title: "Titre",
@@ -291,6 +320,14 @@ const translations = {
     severityHigh: "Élevée",
     severityMedium: "Moyen",
     severityLow: "Faible",
+    //Tree
+    type: "Type",
+    level: "Level",
+
+    status_pending_analysis: "Analyse en attente",
+    status_reprocessing: "Relance en cours",
+    status_analysis_completed: "Terminé",
+    status_analysis_failed: "Échec",
   },
 }
 
@@ -298,23 +335,286 @@ export default function IncidentDetailPage() {
   const router = useRouter()
   const urlSearchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false)
-  const [incident, setIncident] = useState<IIncident|null>(null)
+  const [incident, setIncident] = useState<IIncident | null>(null)
   const [audioFile, setAudioFile] = useState<IMultimedia | null>(null)
   const [photos, setPhotos] = useState<IMultimedia[]>([])
-  const params = useParams<{id: string}>()
+  const params = useParams<{ id: string }>()
   const [language, setLanguage] = useState<Language>("fr")
   const t = translations[language]
   const [isPlayingAudio, setIsPlayingAudio] = useState(false)
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
-  const audioRef = useRef<any|null>(null)
+  const [isPhotoLoading, setIsPhotoLoading] = useState(true)
+  const [isPhotoZoomOpen, setIsPhotoZoomOpen] = useState(false)
+  const [photoZoom, setPhotoZoom] = useState(1)
+  const [isZoomPhotoLoading, setIsZoomPhotoLoading] = useState(false)  
+  const audioRef = useRef<any | null>(null)
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const GOOGLE_MAP_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+  //Header
+  const [isEditingHeader, setIsEditingHeader] = useState(false);
+  const [editedDataHeader, setEditedDataHeader] = useState<any>(null);
+  //Photo
+  const [isEditingPhotoAnalisis, setIsEditingPhotoAnalisis] = useState(false);
+  const [editingPhotoAnalisis, setEditingPhotoAnalisis] = useState<any>(null);
+  //Analysis IA
+  const [isEditingAnalisisIA, setIsEditingAnalisisIA] = useState(false);
+  const [editingAnalisisIA, setEditingAnalisisIA] = useState<any>(null);
+  //Events
+  const [isEditingEvents, setIsEditingEvents] = useState(false);
+  const [editingEvents, setEditingEvents] = useState<any>(null);
+  //Cause tree
+  const [isEditingTree, setIsEditingTree] = useState(false);
+  const [editingCausesTree, setEditingCauseTree] = useState<any>(null);
+
+
+  const { toast } = useToast()
+
+  const getIncidentStatus = (it?: IIncident | null): string | undefined => {
+    if (!it) return undefined
+    return (it as any)?.detail?.status ?? (it as any)?.status
+  }
+
+  const getStatusLabel = (status?: string) => {
+    if (!status) return "-"
+    if (status === "pending_analysis") return (t as any).status_pending_analysis
+    if (status === "reprocessing") return (t as any).status_reprocessing
+    if (status === "analysis_completed") return (t as any).status_analysis_completed
+    if (status === "analysis_failed") return (t as any).status_analysis_failed
+    return status
+  }
+
+  const handleEdit = (data:any, card:string) => {
+    if (card === "header"){      
+      data.location = incident?.location
+      setEditedDataHeader(data);
+      setIsEditingHeader(true);
+    }
+    if (card === "photo"){
+      setIsEditingPhotoAnalisis(true);
+      setEditingPhotoAnalisis(data);
+    }
+    if (card === "analysis_ia"){
+      setIsEditingAnalisisIA(true);
+      setEditingAnalisisIA(data);
+    }
+    if (card === "events"){
+      setIsEditingEvents(true);
+      setEditingEvents(data);
+    }
+    if (card === "tree"){
+      setIsEditingTree(true);
+      setEditingCauseTree(data);
+    }
+  };
+
+  const handleSave = async (card:string) => {
+    if (!incident) return
+    const incidentAux = JSON.parse(JSON.stringify(incident))
+
+    if (card === "header"){
+      if (!editedDataHeader.aiHeader.title.trim()) {
+        toast({ title: "Error", description: `Error: ${t.fieldRequired.replace("{field}",t.title)}`, variant: "destructive", })
+        return
+      }
+      if (!editedDataHeader.aiHeader.description.trim()) {
+        toast({ title: "Error", description: `Error: ${t.fieldRequired.replace("{field}",t.description)}`, variant: "destructive", })
+        return
+      }
+      if (!editedDataHeader.aiHeader.involved_equipment || !editedDataHeader.aiHeader.involved_equipment[0].trim()) {
+        toast({ title: "Error", description: `Error: ${t.fieldRequired.replace("{field}",t.teamInvolved)}`, variant: "destructive", })
+        return
+      }
+      incidentAux.location = editedDataHeader.location
+      incidentAux.ai_analysis[`ai_analysis_${editedDataHeader.lang}`].aiHeader.title = editedDataHeader.aiHeader.title
+      incidentAux.ai_analysis[`ai_analysis_${editedDataHeader.lang}`].aiHeader.description = editedDataHeader.aiHeader.description
+      incidentAux.ai_analysis[`ai_analysis_${editedDataHeader.lang}`].aiHeader.involved_equipment = editedDataHeader.aiHeader.involved_equipment
+      setIsEditingHeader(false);
+    }
+
+    if (card === "photo") {
+      const validateObjects = validateArray(editingPhotoAnalisis.images_objects.detected_objects, "description")
+
+      if (!validateObjects){
+        toast({ title: "Error", description: `Error: ${t.fieldsRequired.replace("{field}",t.detectedObjects)}`, variant: "destructive", })
+        return
+      }
+
+      const validateRisks = validateArray(editingPhotoAnalisis.images_risks.detected_risks, "description")
+
+      if (!validateRisks){
+        toast({ title: "Error", description: `Error: ${t.fieldsRequired.replace("{field}",t.identifiedRisks)}`, variant: "destructive", })
+        return
+      }
+
+      const key = `image_analysis_${editingPhotoAnalisis.lang}`;
+      const photoUrl = photos[currentPhotoIndex].url;
+
+      const imgAnalysis = incidentAux.image_analysis[key];
+
+      imgAnalysis.images_objects = imgAnalysis.images_objects.map((io: any) =>
+        io.image_url === photoUrl
+          ? editingPhotoAnalisis.images_objects
+          : io
+      );
+
+      imgAnalysis.images_risks = imgAnalysis.images_risks.map((ir: any) =>
+        ir.image_url === photoUrl
+          ? editingPhotoAnalisis.images_risks
+          : ir
+      );
+
+      setIsEditingPhotoAnalisis(false);
+    }
+
+    if (card === "analysis_ia"){
+      const validateRecomendations = validateArray(editingAnalisisIA.aiRecommendations, "description")
+
+      if (!validateRecomendations){
+        toast({ title: "Error", description: `Error: ${t.fieldsRequired.replace("{field}",t.recommendations)}`, variant: "destructive", })
+        return
+      }
+
+      if (!editingAnalisisIA.aiHeader.summary.trim()) {
+        toast({ title: "Error", description: `Error: ${t.fieldRequired.replace("{field}",t.summary)}`, variant: "destructive", })
+        return
+      }
+
+      if (!editingAnalisisIA.transcription.trim()) {
+        toast({ title: "Error", description: `Error: ${t.fieldRequired.replace("{field}",t.audioTranscription)}`, variant: "destructive", })
+        return
+      }
+      if (!editingAnalisisIA.aiSentimentAnalysis.overallSentiment.trim()) {
+        toast({ title: "Error", description: `Error: ${t.fieldRequired.replace("{field}",t.overallSentiment)}`, variant: "destructive", })
+        return
+      }
+      incidentAux.ai_analysis[`ai_analysis_${editingAnalisisIA.lang}`].aiRecommendations = editingAnalisisIA.aiRecommendations
+      incidentAux.ai_analysis[`ai_analysis_${editingAnalisisIA.lang}`].aiHeader.summary = editingAnalisisIA.aiHeader.summary
+      incidentAux.ai_analysis[`ai_analysis_${editingAnalisisIA.lang}`].transcription = editingAnalisisIA.transcription
+      incidentAux.ai_analysis[`ai_analysis_${editingAnalisisIA.lang}`].aiSentimentAnalysis.overallSentiment = editingAnalisisIA.aiSentimentAnalysis.overallSentiment
+      setIsEditingAnalisisIA(false);
+    }
+
+    if (card === "events"){
+      const validateEvents = validateArray(editingEvents.aiSequence.events, "event")
+
+      if (!validateEvents){
+        toast({ title: "Error", description: `Error: ${t.fieldsRequired.replace("{field}",t.keyEvents)}`, variant: "destructive", })
+        return
+      }
+      incidentAux.ai_analysis[`ai_analysis_${editingEvents.lang}`].aiSequence.events = editingEvents.aiSequence.events
+      setIsEditingEvents(false);
+    }
+
+    if (card === "tree"){
+      const validateMainCause = validateArray(editingCausesTree.aiAnalyzeRootCauses.causal_branches, "main_cause")
+
+      const levels = editingCausesTree.aiAnalyzeRootCauses.causal_branches.flatMap((b: CausalBranches) => b.levels);
+
+      const validateCause = validateArray(levels, "cause")
+      const validateFactorType = validateArray(levels, "factor_type")
+      const validateFactorQuestion = validateArray(levels, "question")
+
+      if (!validateMainCause || !validateCause || !validateFactorType || !validateFactorQuestion){
+        toast({ title: "Error", description: `Error: ${t.fieldsRequired.replace("{field}",t.causeTree)}`, variant: "destructive", })
+        return
+      }
+      incidentAux.ai_analysis[`ai_analysis_${editingCausesTree.lang}`].aiAnalyzeRootCauses = editingCausesTree.aiAnalyzeRootCauses
+      setIsEditingTree(false);
+    }
+
+    setIsLoading(true)
+    const response = await updateIncident(incidentAux)
+    if (response.data) {
+      setIncident(response.data);
+    }    
+    setIsLoading(false)
+  };
+
+  const handleCancel = (card:string) => {
+    if (card === "header"){
+      setEditedDataHeader(null);
+      setIsEditingHeader(false);
+    }
+    if (card === "photo"){
+      setIsEditingPhotoAnalisis(false);
+      setEditingPhotoAnalisis(null)
+    }
+    if (card === "analysis_ia"){
+      setIsEditingAnalisisIA(false);
+      setEditingAnalisisIA(null)
+    }
+    if (card === "events"){
+      setIsEditingEvents(false);
+      setEditingEvents(null)
+    }
+    if (card === "tree"){
+      setIsEditingTree(false);
+      setEditingCauseTree(null)
+    }
+  };
+
+  const validateArray = (array:any, field:string) => {
+    let validate= true
+    array.map((a: any) => {
+        if (!a[field].trim()) {          
+          validate = false
+        }
+      });
+    return validate
+  };
+
+  const handleChange = (
+    field: string,
+    value: any,
+    card: "header" | "photo" | "analysis_ia" | "events" | "tree"
+  ) => {
+    console.log("field", field)
+    console.log("value", value)
+    console.log("card", card)
+    const setters = {
+      header: setEditedDataHeader,
+      photo: setEditingPhotoAnalisis,
+      analysis_ia: setEditingAnalisisIA,
+      events: setEditingEvents,
+      tree: setEditingCauseTree,
+    } as const;
+    
+    const setter = setters[card];
+
+    setter((prev: any) => {
+      const newItem = structuredClone(prev);
+
+      if (field.includes(".")) {
+        const keys = field.split(".");
+        let current = newItem;
+
+        for (let i = 0; i < keys.length - 1; i++) {
+          current[keys[i]] ??= {};
+          current = current[keys[i]];
+        }
+
+        current[keys[keys.length - 1]] = value;
+      } else {
+        newItem[field] =
+          typeof value === "object"
+            ? { ...newItem[field], ...value }
+            : value;
+      }
+
+      return newItem;
+    });
+  };
 
   const getAIAnalysis = (inc: IIncident | null, lang: "en" | "es" | "fr") => {
     if (!inc?.ai_analysis) return null
     const analysisKey = `ai_analysis_${lang}` as keyof typeof inc.ai_analysis
-    return (inc.ai_analysis as any)?.[analysisKey] || null
+    const analysis = (inc.ai_analysis as any)?.[analysisKey] || null
+    if (analysis?.aiHeader && !analysis?.aiHeader.involved_equipment[0]){
+      analysis.aiHeader.involved_equipment = ["-"]
+    }
+    analysis.lang = lang
+    return analysis
   }
 
   const getSeverityLabel = (severity: string | undefined): string => {
@@ -340,7 +640,7 @@ export default function IncidentDetailPage() {
         const response = await getIncidentsById(params.id)
         if (response.data) {
           setIncident(response.data)
-          
+
           const audios = response.data.multimedias.filter((m) => m.cod_tipo_multimedia === "COD_AUDIO")
           if (audios.length > 0) {
             setAudioFile(audios[0])
@@ -355,16 +655,37 @@ export default function IncidentDetailPage() {
       }
     }
     if (params.id)
-      loadIncident() 
+      loadIncident()
   }, []);
 
   const nextPhoto = () => {
+    setIsPhotoLoading(true)
     setCurrentPhotoIndex((prev) => (prev + 1) % photos.length)
   }
 
   const prevPhoto = () => {
+    setIsPhotoLoading(true)
     setCurrentPhotoIndex((prev) => (prev - 1 + photos.length) % photos.length)
   }
+
+  useEffect(() => {
+    if (photos.length === 0) return
+  }, [currentPhotoIndex, photos.length])
+
+  useEffect(() => {
+    if (!isPhotoZoomOpen) return
+    setIsZoomPhotoLoading(true)
+    setPhotoZoom(1)
+  }, [isPhotoZoomOpen, currentPhotoIndex])
+
+  const openPhotoZoom = () => {
+    setIsZoomPhotoLoading(true)
+    setPhotoZoom(1)
+    setIsPhotoZoomOpen(true)
+  }
+
+  const zoomInPhoto = () => setPhotoZoom((z) => Math.min(3, Math.round((z + 0.25) * 100) / 100))
+  const zoomOutPhoto = () => setPhotoZoom((z) => Math.max(1, Math.round((z - 0.25) * 100) / 100))
 
   const togglePlayAudio = () => {
     if (audioRef.current) {
@@ -450,7 +771,7 @@ export default function IncidentDetailPage() {
 👥 *${t.involvedPeople}:* ${incident?.people?.map((p) => `${p.firstName} ${p.lastName} (${p.role})`).join(", ")}
 
 *${t.recommendations}:*
-${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`).join("\n")}
+${incident?.ai_analysis?.recommendations.map((r: any, i: any) => `${i + 1}. ${r}`).join("\n")}
     `.trim()
 
     // In a real app, this would send to WhatsApp API
@@ -491,600 +812,856 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
     }
   }
 
-  const getDetailAnalizeImage = (currentPhotoIndex:number) => {
+  const getDetailAnalizeImage = () => {
     if (!incident?.image_analysis && photos.length <= 0) return null
     const key = `image_analysis_${language}`;
     const current_image_analysis = incident?.image_analysis?.[key] ?? null;
-    let images_objects:any = null
-    let images_risks:any = null
+    let images_objects: any = null
+    let images_risks: any = null
 
     if (current_image_analysis) {
-      const indexOb = current_image_analysis?.images_objects?.findIndex((io:any) => io.image_url === photos[currentPhotoIndex].url)
-      images_objects = indexOb >=0 ? current_image_analysis?.images_objects[indexOb] : null
+      const indexOb = current_image_analysis?.images_objects?.findIndex((io: any) => io.image_url === photos[currentPhotoIndex].url)
+      images_objects = indexOb >= 0 ? current_image_analysis?.images_objects[indexOb] : null
 
-      const indexRisk = current_image_analysis?.images_risks?.findIndex((io:any) => io.image_url === photos[currentPhotoIndex].url)
-      images_risks = indexRisk >=0 ? current_image_analysis?.images_risks[indexRisk] : null
+      const indexRisk = current_image_analysis?.images_risks?.findIndex((io: any) => io.image_url === photos[currentPhotoIndex].url)
+      images_risks = indexRisk >= 0 ? current_image_analysis?.images_risks[indexRisk] : null
     }
 
-    if (!images_objects && !images_risks) return null
-
-    return (
-    <div className="mt-4 space-y-3 text-sm">
-      {/* <div>
-        <p className="text-slate-700 italic">{photoAnalysis[currentPhotoIndex].description}</p>
-      </div> */}
-
-      <div>
-        <h4 className="font-semibold text-slate-900 mb-1">
-          {language === "es" ? "Objetos detectados:" : "Detected objects:"}
-        </h4>
-        <ul className="list-disc list-inside space-y-1 text-slate-600">
-          {images_objects?.detected_objects?.map((obj:any, idx:number) => (
-            <li key={idx}>{obj.description}</li>
-          ))}
-        </ul>
-      </div>
-
-      <div>
-        <h4 className="font-semibold text-red-700 mb-1">
-          {language === "es" ? "Riesgos identificados:" : "Identified risks:"}
-        </h4>
-        <ul className="list-disc list-inside space-y-1 text-red-600">
-          {images_risks?.detected_risks?.map((risk:any, idx:number) => (
-            <li key={idx}>{risk.description}</li>
-          ))}
-        </ul>
-      </div>
-    </div>
-    )
+    return {
+      images_objects,
+      images_risks,
+      lang: language
+    }
   }
 
+  const current_image_analysis = getDetailAnalizeImage()
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-8">
+    <div
+      className="relative min-h-screen bg-no-repeat p-4 md:p-8 font-montserrat overflow-x-hidden"
+      style={{
+        backgroundImage: 'url(/Bg_2.png)',
+        backgroundAttachment: 'scroll',
+        backgroundSize: 'auto',
+        backgroundPosition: 'top',
+        backgroundColor: '#303060'
+      }}
+    >
+      <img
+        src="/Top1.png"
+        alt="Top gradient"
+        className="absolute top-0 left-0 right-0 w-full h-auto"
+        style={{ objectFit: 'cover' }}
+      />
+      <div className="absolute inset-0 bg-black/40"></div>
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-sm z-150">
           <Spinner className="w-12 h-12" />
         </div>
       )}
-      <div className="max-w-7xl mx-auto">
+      <div className="relative z-10 max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <Button type="button" variant="outline" onClick={() => router.push(`/incidents/?lang=${language}`)} className="gap-2 cursor-pointer">
-            <ArrowLeft className="h-4 w-4" />
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-6 sm:mt-8 mb-6 sm:mb-10">
+          <Button type="button" variant="outline" onClick={() => router.push(`/incidents/?lang=${language}`)} className="gap-2 cursor-pointer text-white bg-transparent border-0 hover:bg-transparent font-medium justify-start">
+            <ArrowLeft className="h-4 w-8 text-white" />
             {t.backButton}
           </Button>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between sm:justify-end gap-3 md:gap-6 flex-wrap w-full sm:w-auto">
             {/* Share Button */}
-            <Button variant="outline" onClick={handleShare} className="gap-2 bg-transparent">
+            <Button variant="outline" onClick={handleShare} className="gap-2 bg-[#FFCA00] border-0 hover:bg-[#FFCA00]">
               <Share2 className="h-4 w-4" />
               {t.shareButton}
             </Button>
-            {/* Language Flags */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => setLanguage("en")}
-                className={`text-2xl transition-opacity ${language === "en" ? "opacity-100" : "opacity-40 hover:opacity-70"} cursor-pointer`}
-                title="English"
-              >
-                🇺🇸
-              </button>
-              <button
-                onClick={() => setLanguage("es")}
-                className={`text-2xl transition-opacity ${language === "es" ? "opacity-100" : "opacity-40 hover:opacity-70"} cursor-pointer`}
-                title="Español"
-              >
-                🇪🇸
-              </button>
-              <button
-                onClick={() => setLanguage("fr")}
-                className={`text-2xl transition-opacity ${language === "fr" ? "opacity-100" : "opacity-40 hover:opacity-70"} cursor-pointer`}
-                title="Français"
-              >
-                🇫🇷
-              </button>
-            </div>
+            {/* Language Selector */}
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as Language)}
+              className="bg-transparent text-white font-medium cursor-pointer appearance-none outline-none px-2 py-2 rounded text-sm md:text-base max-w-full"
+              aria-label="Language"
+            >
+              <option value="en" className="bg-white text-slate-900 text-base">EN</option>
+              <option value="es" className="bg-white text-slate-900 text-base">ES</option>
+              <option value="fr" className="bg-white text-slate-900 text-base">FR</option>
+            </select>
+            <img
+              src="/LogoIdiomas.png"
+              alt="Language"
+              className="h-5 w-5 md:h-6 md:w-6 shrink-0 cursor-pointer"
+              onClick={() => document.querySelector('select')?.click()}
+            />
+            <img
+              src="/Tick.png"
+              alt="Dropdown"
+              className="h-8 w-16 md:h-10 md:w-24 pointer-events-none md:-mr-30 md:mb-5 shrink-0"
+            />
           </div>
         </div>
 
         {/* Combined Incident Info and Photo Carousel */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-10 lg:mb-10">
           {/* Incident Information Panel - 60% */}
-          <Card className={`bg-white/80 backdrop-blur-sm ${
-              photos.length > 0 ? "lg:col-span-3" : "lg:col-span-5"
-            }`}>
-            <CardContent className="pt-6">
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
+          <Card className={`bg-transparent !py-0 lg:max-h-[110vh] !pt-[1.45rem] border-transparent h-full ${photos.length > 0 ? "lg:col-span-3 " : "lg:col-span-5"
+            } flex flex-col`}>
+            <div>
+              {/* Summary Bar */}
+              <div className="bg-[#303060] rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between -mt-4 sm:-mt-6 gap-4 sm:gap-6">
+                <div className="flex items-center gap-6">
+                  <div className="border-b sm:border-b-0 sm:border-r border-slate-500 pb-3 sm:pb-0 pr-0 sm:pr-6 flex flex-col">
+                    <div>
+                      <p className="text-xs text-white mb-2 mt-0 lg:-mt-14 uppercase font-bold">ID</p>
+                    </div>
+                    <p className="text-lg font-bold text-white">#{incident?.id.substring(0, 5)}</p>
+                  </div>
+                  <div className="flex flex-col">
+                    <div>
+                      <p className="text-xs text-white mb-2 mt-0 lg:-mt-14 uppercase font-bold">{t.status}</p>
+                    </div>
+                    <p className="text-lg font-bold text-white">{getStatusLabel(getIncidentStatus(incident))}</p>
+                  </div>
+                </div>
+                <div className="flex flex-col items-start sm:items-end">
+                  <div>
+                    <p className="text-xs text-white mb-2 mt-0 lg:-mt-12 uppercase font-bold">{t.severity}</p>
+                  </div>
+                  <div className={`w-full sm:w-48 px-3 sm:px-4 text-center py-2 rounded-sm text-xl sm:text-2xl font-bold text-white ${currentAIAnalysis?.aiHeader?.severity === "3"
+                      ? "bg-red-600"
+                        : currentAIAnalysis?.aiHeader?.severity === "1"
+                          ? "bg-green-600"
+                          : "bg-yellow-400"
+                    }`}>
+                    {getSeverityLabel(currentAIAnalysis?.aiHeader?.severity)}
+                  </div>
+                </div>
+              </div>
+            </div>
+              {/* Info Grid*/}
+              <div className="bg-[#6A6A6A] rounded-lg p-4 flex flex-col gap-4 relative z-10 -mb-6">
+                <div className="absolute top-3 right-3">
+                  <div className="flex gap-2">
+                    {!isEditingHeader ? (
+                      <button
+                        onClick={() => handleEdit(currentAIAnalysis, "header")}
+                        className="bg-white/20 hover:bg-white/30 backdrop-blur-sm p-2 rounded-lg transition-all duration-200 group"
+                        title="Editar"
+                      >
+                        <Pencil className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleSave("header")}
+                          className="bg-green-500 hover:bg-green-600 p-2 rounded-lg transition-all duration-200 group"
+                          title="Guardar"
+                        >
+                          <Save className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                        </button>
+                        <button
+                          onClick={() =>handleCancel("header")}
+                          className="bg-red-500 hover:bg-red-600 p-2 rounded-lg transition-all duration-200 group"
+                          title="Cancelar"
+                        >
+                          <X className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row w-full gap-6 mt-4">
+                  <div className="flex flex-1 items-center gap-3 sm:basis-[55%] sm:flex-none">
+                    <User className="h-5 w-5 text-slate-300" />
+                    <div>
+                      <p className="text-xs text-slate-300 mb-1">{t.reportedBy}</p>
+                      <p className="text-sm font-medium text-white">
+                        {incident?.reported_by?.name}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-1 items-center gap-3">
+                    <Calendar className="h-5 w-5 text-slate-300" />
+                    <div>
+                      <p className="text-xs text-slate-300 mb-1">{t.date}</p>
+                      <p className="text-sm font-medium text-white">{incident?.date}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-1 items-center gap-3">
+                    <Clock className="h-5 w-5 text-slate-300" />
+                    <div>
+                      <p className="text-xs text-slate-300 mb-1">{t.time}</p>
+                      <p className="text-sm font-medium text-white">{incident?.time}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            <CardContent className="p-0 bg-white rounded-lg relative -mt-2 sm:-mt-4 flex-1 min-h-0 lg:overflow-y-auto">
+              {/* Content Below Summary */}
+              <div className="px-4 sm:px-6 pt-6 sm:pt-8 pb-6">
+                {/* Title Section */}
+                <div className="mb-6">
+                  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900">
+                    {isEditingHeader ? (
+                      <input
+                        type="text"
+                        value={editedDataHeader?.aiHeader?.title}
+                        onChange={(e) => handleChange('aiHeader.title', e.target.value, "header")}
+                        className="w-full border-2 border-indigo-300 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500"
+                      />
+                    ) : (
+                      currentAIAnalysis?.aiHeader?.title || incident?.title
+                    )}
+                  </h2>
+                </div>
+
+                {/* Description Section */}
                 <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <h1 className="text-2xl md:text-3xl font-bold text-slate-900">#{incident?.id.substring(0,10)}</h1>
-                    <Badge variant="secondary" className="text-sm">
-                      {incident?.status}
-                    </Badge>
+                  <h3 className="text-sm font-bold text-slate-900 mb-3 uppercase">{t.description}</h3>
+                  <div className="flex items-start justify-between mb-6">
+                    <p className="text-slate-600 leading-relaxed flex-1">
+                      {isEditingHeader ? (
+                        <input
+                          type="text"
+                          value={editedDataHeader?.aiHeader?.description}
+                          onChange={(e) => handleChange('aiHeader.description', e.target.value, "header")}
+                          className="w-full border-2 border-indigo-300 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500"
+                        />
+                      ) : (
+                        currentAIAnalysis?.aiHeader?.description
+                      )}
+                    </p>
                   </div>
-                  <h2 className="text-4xl font-bold text-slate-900 mb-4">{currentAIAnalysis?.aiHeader?.title || incident?.title}</h2>
                 </div>
-                <Badge
-                  variant={
-                    currentAIAnalysis?.aiHeader?.severity === "3"
-                      ? "destructive"
-                      : currentAIAnalysis?.aiHeader?.severity === "2"
-                        ? "default"
-                        : "success"
-                  }
-                >
-                  {t.severity}: {getSeverityLabel(currentAIAnalysis?.aiHeader?.severity)}
-                </Badge>
-              </div>
+                <div className="bg-black w-full h-px my-8"></div>
 
-              {/* Info Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="flex items-center gap-3 text-slate-600">
-                  <User className="h-5 w-5" />
+                {/* Location and Team Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 mb-8">
                   <div>
-                    <p className="text-xs text-slate-500">{t.reportedBy}</p>
-                    <p className="text-sm font-medium">{incident?.reported_by?.name}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 text-slate-600">
-                  <Calendar className="h-5 w-5" />
-                  <div>
-                    <p className="text-xs text-slate-500">{t.date}</p>
-                    <p className="text-sm font-medium">{incident?.date}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 text-slate-600">
-                  <Clock className="h-5 w-5" />
-                  <div>
-                    <p className="text-xs text-slate-500">{t.time}</p>
-                    <p className="text-sm font-medium">{incident?.time}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 text-slate-600">
-                  <MapPin className="h-5 w-5" />
-                  <div>
-                    <p className="text-xs text-slate-500">{t.location}</p>
-                    <p className="text-sm font-medium">{incident?.location?.address}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 text-slate-600 md:col-span-2">
-                  <Users className="h-5 w-5" />
-                  <div>
-                    <p className="text-xs text-slate-500">{t.teamInvolved}</p>
-                    <p className="text-sm font-medium">{currentAIAnalysis?.aiHeader?.involved_equipment ? currentAIAnalysis?.aiHeader?.involved_equipment[0] : ""}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Involved People Section */}
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  {t.involvedPeople}
-                </h3>
-                <div className="space-y-2">
-                  {currentAIAnalysis?.aiHeader?.involved_people?.map((person:any, index:number) => (
-                    <div key={index} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                        <User className="h-5 w-5 text-blue-600" />
-                      </div>
+                    <div className="flex items-center gap-2 mb-4">
+                      <img src="/location.png" alt="Location" className="h-10 w-8" />
                       <div>
-                        <p className="font-normal text-normal text-slate-900">{person}</p>
-                        {/* <p className="text-sm text-slate-600">{person.position}</p> */}
+                        <p className="text-lg text-slate-500">{t.location}</p>
+                        <p className="text-sm font-bold text-slate-900">{!isEditingHeader ? incident?.location?.address : editedDataHeader?.location?.address}</p>
                       </div>
                     </div>
-                  ))}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-4">
+                      <Users className="h-10 w-10 text-slate-700" />
+                      <div>
+                        <p className="text-lg text-slate-500">{t.teamInvolved}</p>
+                        <p className="text-sm font-bold text-black">
+                          {isEditingHeader ? (
+                            <input
+                              type="text"
+                              value={editedDataHeader?.aiHeader?.involved_equipment[0]}
+                              onChange={(e) => handleChange('aiHeader.involved_equipment.0', e.target.value, "header")}
+                              className="w-full border-2 border-indigo-300 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500"
+                            />
+                          ) : (
+                            currentAIAnalysis?.aiHeader?.involved_equipment ? currentAIAnalysis?.aiHeader?.involved_equipment[0] : "-"
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              {/* Description */}
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">{t.description}</h3>
-                <p className="text-slate-600 leading-relaxed">{currentAIAnalysis?.aiHeader?.description || incident?.description}</p>
+                {/* Map and Details Layout */}
+                <div className="grid grid-cols-1 sm:grid-cols-5 gap-6 sm:gap-8 mb-8">
+                  {/* Left: Coordinates and Details - 40% */}
+                  <div className="sm:col-span-2 space-y-2">
+                    <div>
+                      <p className="text-xs text-slate-500 mb-2">{t.state}</p>
+                      <p className="text-base sm:text-lg font-bold text-slate-900">{!isEditingHeader ? incident?.location?.city : editedDataHeader?.location?.city}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500 mb-2">{t.country}</p>
+                      <p className="text-base sm:text-lg font-bold text-slate-900">{!isEditingHeader ? incident?.location?.country : editedDataHeader?.location?.country}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500 mb-2">{t.coordinates}</p>
+                      <p className="text-base sm:text-lg font-bold text-slate-900">Lat: {!isEditingHeader ? incident?.location?.lat.toFixed(4) : editedDataHeader?.location?.lat.toFixed(4)}</p>
+                      <p className="text-base sm:text-lg font-bold text-slate-900">Lng: {!isEditingHeader ? incident?.location?.lng.toFixed(4) : editedDataHeader?.location?.lng.toFixed(4)}</p>
+                    </div>
+                  </div>
+
+                  {/* Right: Map - 60% */}
+                  <div className="sm:col-span-3 h-64 bg-slate-200 rounded-lg overflow-hidden">
+                    {(incident?.location && GOOGLE_MAP_API_KEY) && (
+                      <CustomGoogleMap
+                        lat={!isEditingHeader ? incident.location.lat : editedDataHeader.location.lat}
+                        lng={!isEditingHeader ? incident.location.lng : editedDataHeader.location.lng}
+                        apiKey={GOOGLE_MAP_API_KEY || ""}
+                        lang={language}
+                        edit={isEditingHeader}
+                        onLocationChange={(location) => {
+                          handleChange('location', location, "header")
+                        }}
+                        />
+                    )}
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Photo Carousel - 40% */}
           {photos.length > 0 && (
-          <Card className="bg-white/80 backdrop-blur-sm lg:col-span-2">
-            <CardHeader className="bg-gradient-to-r from-blue-100 to-indigo-100 gap-0">
-              <CardTitle className="flex items-center gap-2 p-2">
-                <ImageIcon className="h-5 w-5 text-blue-600" />
-                {t.photos}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="relative">
-                <div className="aspect-video bg-slate-100 rounded-lg overflow-hidden">
-                  <img
-                    src={photos[currentPhotoIndex].url || "/placeholder.svg"}
-                    alt={`Incident photo ${currentPhotoIndex + 1}`}
-                    className="w-full h-full object-cover"
-                  />
+            <Card className="bg-white backdrop-blur-sm lg:max-h-[110vh] lg:col-span-2 overflow-hidden flex flex-col h-full">
+              <CardContent className="lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
+                <div className="sticky top-0 z-10 bg-white">
+                  <div className="flex flex-row text-right">
+                    <div className="flex gap-2 ml-auto mb-1 p-2">
+                      {!isEditingPhotoAnalisis ? (
+                        <button
+                          onClick={() => handleEdit(current_image_analysis, "photo")}
+                          className="bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50
+                            p-2 rounded-lg shadow-sm transition-all duration-200 group"
+                          title="Editar"
+                        >
+                          <Pencil className="w-5 h-5 text-slate-600 group-hover:scale-110 transition-transform" />
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleSave("photo")}
+                            className="bg-green-500 hover:bg-green-600 p-2 rounded-lg transition-all duration-200 group"
+                            title="Guardar"
+                          >
+                            <Save className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                          </button>
+                          <button
+                            onClick={() => handleCancel("photo")}
+                            className="bg-red-500 hover:bg-red-600 p-2 rounded-lg transition-all duration-200 group"
+                            title="Cancelar"
+                          >
+                            <X className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white"
-                  onClick={prevPhoto}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white"
-                  onClick={nextPhoto}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
-                  {photos.map((_, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setCurrentPhotoIndex(index)}
-                      className={`w-2 h-2 rounded-full transition-all ${
-                        index === currentPhotoIndex ? "bg-white w-6" : "bg-white/50"
-                      }`}
+                <div className="relative">
+                  <div className="aspect-video bg-slate-100 rounded-lg overflow-hidden relative">
+                    {isPhotoLoading && (
+                      <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+                        <Spinner className="w-8 h-8 text-white" />
+                      </div>
+                    )}
+                    <img
+                      src={photos[currentPhotoIndex].url || "/placeholder.svg"}
+                      alt={`Incident photo ${currentPhotoIndex + 1}`}
+                      className="w-full h-full object-cover cursor-zoom-in"
+                      draggable={false}
+                      onClick={openPhotoZoom}
+                      onLoad={() => setIsPhotoLoading(false)}
+                      onError={() => setIsPhotoLoading(false)}
                     />
-                  ))}
-                </div>
-              </div>
+                  </div>
 
-              {/* AI-extracted information below the photo */}
-              {
-                getDetailAnalizeImage(currentPhotoIndex)
-              }
-            </CardContent>
-          </Card>)}
+                  {photos.length > 1 && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        disabled={isEditingPhotoAnalisis}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white"
+                        onClick={prevPhoto}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        disabled={isEditingPhotoAnalisis}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white"
+                        onClick={nextPhoto}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                        {photos.map((_, index) => (
+                          <button
+                            key={index}
+                            onClick={() => {
+                              setIsPhotoLoading(true)
+                              setCurrentPhotoIndex(index)
+                            }}
+                            className={`w-2 h-2 rounded-full transition-all ${index === currentPhotoIndex ? "bg-white w-6" : "bg-white/50"
+                              }`}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* AI-extracted information below the photo */}
+                <div className="mt-4 space-y-3 text-sm">
+                  <div>
+                    <h4 className="font-semibold text-slate-900 mb-1">
+                      {language === "es" ? "Objetos detectados:" : "Detected objects:"}
+                    </h4>
+                    <ul className="list-none space-y-1 text-slate-600">
+                      {current_image_analysis?.images_objects?.detected_objects?.map((obj: any, idx: number) => (
+                        isEditingPhotoAnalisis ? (
+                                <input
+                                  key={idx}
+                                  type="text"
+                                  value={editingPhotoAnalisis?.images_objects?.detected_objects[idx].description}
+                                  onChange={(e) => handleChange(`images_objects.detected_objects.${idx}.description`, e.target.value, "photo")}
+                                  className="w-full border-2 border-indigo-300 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500"
+                                />
+                              ) : (
+                                <li key={idx}>- {obj.description}</li>
+                              )
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="flex w-full h-px bg-[#707070] mt-8"></div>
+
+                  <div>
+                    <img src="/warning.png" alt="Warning" className="h-11 w-12 my-6" />
+                    <h4 className="font-semibold text-[#D84B00] my-4 text-2xl uppercase">
+                      {t.identifiedRisks}:
+                    </h4>
+                    <ul className="list-none space-y-1 text-[#D84B00]">
+                      {current_image_analysis?.images_risks?.detected_risks?.map((risk: any, idx: number) => (
+                        isEditingPhotoAnalisis ? (
+                                <input
+                                  key={idx}
+                                  type="text"
+                                  value={editingPhotoAnalisis?.images_risks?.detected_risks[idx].description}
+                                  onChange={(e) => handleChange(`images_risks.detected_risks.${idx}.description`, e.target.value, "photo")}
+                                  className="w-full border-2 border-indigo-300 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500"
+                                />
+                              ) : (
+                                <li key={idx}>
+                                  <b>- {risk.name ? risk.name + ": " : ""} </b>{risk.description}
+                                </li>
+                              )
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>)}
         </div>
 
-        {/* Location and Map Section */}
-        {incident?.location && (
-        <Card className="mb-6 bg-white/80 backdrop-blur-sm">
-          <CardHeader className="bg-gradient-to-r from-blue-100 to-indigo-100 gap-0">
-            <CardTitle className="flex items-center gap-2 p-2">
-              <MapPin className="h-5 w-5 text-blue-600" />
-              {t.locationAndMap}
-            </CardTitle>
-          </CardHeader>          
-          <CardContent className="pt-6">
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <h4 className="font-medium text-slate-900 mb-2">{t.location}</h4>
-                  <p className="text-slate-600">{incident?.location?.address}</p>
-                </div>
-                <div>
-                  <h4 className="font-medium text-slate-900 mb-2">{t.country}</h4>
-                  <p className="text-slate-600">{incident?.location?.country}</p>
-                </div>
-                <div>
-                  <h4 className="font-medium text-slate-900 mb-2">{t.state}</h4>
-                  <p className="text-slate-600">{incident?.location?.city}</p>
-                </div>
-                <div>
-                  <h4 className="font-medium text-slate-900 mb-2">
-                    {t.coordinates}
-                  </h4>
-                  <p className="text-sm text-slate-600">
-                    Lat: {incident?.location?.lat.toFixed(6)}° N<br />
-                    Lng: {incident?.location?.lng.toFixed(6)}° W
-                  </p>
+
+        {/* AI Analysis and Key Events + Cause Tree Layout */}
+        {/* <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 lg:h-350 ${photos.length > 0 ? "lg:col-span-3 " : "mt-10 lg:mt-40 lg:col-span-5"}`}> */}
+        <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10 lg:mb-10 ${photos.length > 0 ? "lg:col-span-3 " : "mt-10 lg:mt-40 lg:col-span-5"}`}>
+          {/* Left Column: AI Analysis */}
+          <Card className="bg-transparent border-transparent lg:max-h-[224vh] h-full flex flex-col min-h-0">
+          <div>
+              {/* Title AI_ANALYSIS Grid*/}
+              <div className="bg-[#303060] w-full h-16 rounded-lg p-4 flex items-center justify-between relative z-10 -mt-6">
+                <div className="flex justify-between items-center gap-4 w-full">
+                  <p className="text-xl font-medium text-white">{t.aiAnalysis}</p>
+                  <div className="flex gap-2 ml-auto p-2">
+                    {!isEditingAnalisisIA ? (
+                        <button
+                          onClick={() => handleEdit(currentAIAnalysis, "analysis_ia")}
+                          className="bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 p-2 rounded-lg
+                            shadow-sm transition-all duration-200 group"
+                          title="Editar"
+                        >
+                          <Pencil className="w-5 h-5 text-slate-600 group-hover:scale-110 transition-transform" />
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleSave("analysis_ia")}
+                            className="bg-green-500 hover:bg-green-600 p-2 rounded-lg transition-all duration-200 group"
+                            title="Guardar"
+                          >
+                            <Save className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                          </button>
+                          <button
+                            onClick={() => handleCancel("analysis_ia")}
+                            className="bg-red-500 hover:bg-red-600 p-2 rounded-lg transition-all duration-200 group"
+                            title="Cancelar"
+                          >
+                            <X className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                          </button>
+                        </>
+                      )}
+                    </div>
                 </div>
               </div>
-              <div className="w-full h-64 bg-slate-100 rounded-lg overflow-hidden relative">
-                <iframe
-                  width="100%"
-                  height="100%"
-                  style={{ border: 0 }}
-                  loading="lazy"
-                  allowFullScreen
-                  referrerPolicy="no-referrer-when-downgrade"
-                  src={`https://www.google.com/maps/embed/v1/place?key=${GOOGLE_MAP_API_KEY}&q=${incident.location.lat},${incident.location.lng}&zoom=15`}
-                />
+          </div>
+            <CardContent className="space-y-4 pt-2 bg-white rounded-lg -mt-8 sm:-mt-12 lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
+              <div>
+                <h4 className="font-medium text-slate-900 mb-2 mt-6">{t.summary}</h4>
+                {isEditingAnalisisIA ? (
+                  <textarea
+                    rows={4}
+                    value={editingAnalisisIA?.aiHeader?.summary}
+                    onChange={(e) => handleChange('aiHeader.summary', e.target.value, "analysis_ia")}
+                    className="w-full border-2 border-indigo-300 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500"
+                  />
+                ) : (
+                  <p className="text-black">{currentAIAnalysis?.aiHeader?.summary}</p>
+                )}                
               </div>
-            </div>
-          </CardContent>
-        </Card>)}
 
-        {/* AI Analysis */}
-        <Card className="mb-6 bg-white/80 backdrop-blur-sm">
-          <CardHeader className="bg-gradient-to-r from-purple-100 to-pink-100 gap-0">
-            <CardTitle className="flex items-center gap-2 p-2">
-              <Brain className="h-5 w-5 text-purple-600" />
-              {t.aiAnalysis}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 pt-6">
-            <div>
-              <h4 className="font-medium text-slate-900 mb-2">{t.summary}</h4>
-              <p className="text-slate-600">{currentAIAnalysis?.aiHeader?.summary}</p>
-            </div>
-
-            <div>
-              <h4 className="font-medium text-slate-900 mb-2">{t.audioReport}</h4>
-              {audioFile && (
-              <div className="bg-slate-50 rounded-lg p-4 flex items-center gap-4">
-                {/* <Button
-                  size="icon"
-                  variant="outline"
-                  onClick={toggleAudio}
-                  className="h-10 w-10 rounded-full bg-transparent"
-                >
-                  {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
-                </Button>
-                <div className="flex-1">
-                  <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-blue-600 rounded-full transition-all"
-                      style={{ width: isPlaying ? "45%" : "0%" }}
+              <div>
+                <h4 className="font-medium text-slate-900 mb-2">{t.audioReport}</h4>
+                {audioFile && (
+                  <div className="bg-slate-50 rounded-lg p-4 flex items-center gap-4">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      onClick={togglePlayAudio}
+                      className="shrink-0"
+                    >
+                      {isPlayingAudio ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                    </Button>
+                    <audio
+                      ref={audioRef}
+                      src={audioFile?.url}
+                      onTimeUpdate={handleTimeUpdate}
+                      onLoadedMetadata={handleLoadedMetadata}
+                      onEnded={() => setIsPlayingAudio(false)}
+                      className="hidden"
                     />
+                    <div className="flex flex-1 items-center gap-4">
+                      <span className="w-12 text-right text-sm tabular-nums">
+                        {formatTime(currentTime)}
+                      </span>
+
+                      <input
+                        type="range"
+                        className="flex-1 rounded-full"
+                        min={0}
+                        max={duration || 0}
+                        step="0.1"
+                        value={currentTime}
+                        onChange={handleSeek}
+                      />
+
+                      <span className="w-12 text-left text-sm tabular-nums">
+                        {formatTime(duration)}
+                      </span>
+                    </div>
+                  </div>)}
+              </div>
+
+                <div className="bg-black w-full h-px my-8"></div>
+
+              {/* Audio Transcription Section */}
+              <div>
+                <h4 className="font-medium text-slate-900 mb-2">{t.audioTranscription}</h4>
+                <div className="bg-white rounded-lg">
+                  {isEditingAnalisisIA ? (
+                    <textarea
+                      rows={4}
+                      value={editingAnalisisIA?.transcription}
+                      onChange={(e) => handleChange('transcription', e.target.value, "analysis_ia")}
+                      className="w-full border-2 border-indigo-300 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500"
+                    />
+                  ) : (
+                    <p className="text-slate-700 italic leading-relaxed mb-8">&ldquo;{currentAIAnalysis?.transcription}&rdquo;</p>
+                  )}                  
+                </div>
+              </div>
+
+              {/* Recommendations Section */}
+              <div className="rounded-lg bg-[#6A6A6A] p-8">
+                <h4 className="font-bold text-[#FFCA00] mb-2 inline-block">{t.recommendations}</h4>
+                <ul className="space-y-2">
+                  {!currentAIAnalysis?.aiRecommendations.error ? currentAIAnalysis?.aiRecommendations?.map((rec: any, index: number) => (
+                    isEditingAnalisisIA ? (
+                        <input
+                          key={index}
+                          type="text"
+                          value={editingAnalisisIA?.aiRecommendations[index].description}
+                          onChange={(e) => handleChange(`aiRecommendations.${index}.description`, e.target.value, "analysis_ia")}
+                          className="w-full border-2 text-white border-indigo-300 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500"
+                        />
+                      ) : (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-white font-bold">- {typeof rec === 'string' ? rec : rec?.description}</span>
+                        </li>
+                      )
+                  )) : null}
+                </ul>
+              </div>
+              
+                <div className="bg-black w-full h-px my-8"></div>
+
+              {/* Sentiment Analysis Section */}
+              <div>
+                <h4 className="font-bold text-xl text-[#303060] mb-3">{t.sentimentAnalysis}</h4>
+                <div className="bg-white rounded-lg p-4 space-y-4">
+                  <div className="flex items-center justify-between bg-[#E2E2E2] rounded-sm p-4">
+                    <span className="text-sm text-black">{t.overallSentiment}:</span>
+                    {isEditingAnalisisIA ? (
+                      <input
+                        type="text"
+                        value={editingAnalisisIA?.aiSentimentAnalysis?.overallSentiment}
+                        onChange={(e) => handleChange('aiSentimentAnalysis.overallSentiment', e.target.value, "analysis_ia")}
+                        className="border-2 border-indigo-300 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500"
+                      />
+                    ) : (
+                      <span className="font-semibold text-[#303060]">{currentAIAnalysis?.aiSentimentAnalysis?.overallSentiment}</span>
+                    )}
+                  </div>
+
+                  <div>
+                    {/* <p className="text-sm text-slate-600 mb-2">{t.detectedEmotions}:</p> */}
+                    <div className="space-y-2">
+                      {currentAIAnalysis?.aiSentimentAnalysis?.detectedEmotions?.map((item: any, idx: number) => {
+                        const color =
+                          EMOTIONS_COLOR[item.emotion]?.color ?? "bg-slate-400";
+
+                        return (
+                          <div key={idx}>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-slate-700">{item.emotion}</span>
+                              <span className="font-medium text-slate-900">{item.percentage}%</span>
+                            </div>
+                            <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full ${color} transition-all`}
+                                style={{ width: `${item.percentage}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 pt-2 border-t">
+                    <div>
+                      <span className="text-sm text-slate-600">{t.tone}:</span>
+                      <p className="font-medium text-slate-900">{currentAIAnalysis?.aiSentimentAnalysis?.tone}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm text-slate-600">{t.confidence}:</span>
+                      <p className="font-medium text-slate-900">{currentAIAnalysis?.aiSentimentAnalysis?.confidence}%</p>
+                    </div>
                   </div>
                 </div>
-                <span className="text-sm text-slate-600 font-medium">{incident?.audioDuration}</span> */}
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="outline"
-                  onClick={togglePlayAudio}
-                  className="flex-shrink-0"
-                >
-                  {isPlayingAudio ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                </Button>
-                <audio
-                  ref={audioRef}
-                  src={audioFile?.url}
-                  onTimeUpdate={handleTimeUpdate}
-                  onLoadedMetadata={handleLoadedMetadata}
-                  onEnded={() => setIsPlayingAudio(false)}
-                  className="hidden"
-                />
-                <div className="flex flex-1 items-center gap-4">
-                  <span className="w-12 text-right text-sm tabular-nums">
-                    {formatTime(currentTime)}
-                  </span>
-
-                  <input
-                    type="range"
-                    className="flex-1 rounded-full"
-                    min={0}
-                    max={duration || 0}
-                    step="0.1"
-                    value={currentTime}
-                    onChange={handleSeek}
-                  />
-
-                  <span className="w-12 text-left text-sm tabular-nums">
-                    {formatTime(duration)}
-                  </span>
-                </div>
-              </div>)}
-            </div>
-
-            <div>
-              <h4 className="font-medium text-slate-900 mb-2">{t.inconsistencies}</h4>
-              <p className="text-slate-600">{currentAIAnalysis?.inconsistencies || t.noInconsistenciesDetected}</p>
-            </div>
-            <div>
-              <h4 className="font-medium text-slate-900 mb-2">{t.recommendations}</h4>
-              <ul className="space-y-2">
-                {currentAIAnalysis?.aiRecommendations?.map((rec:any, index:number) => (
-                  <li key={index} className="flex items-start gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                    <span className="text-slate-600">{typeof rec === 'string' ? rec : rec?.description}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Audio Transcription Section */}
-            <div>
-              <h4 className="font-medium text-slate-900 mb-2">{t.audioTranscription}</h4>
-              <div className="bg-slate-50 rounded-lg p-4">
-                <p className="text-slate-700 italic leading-relaxed">&ldquo;{currentAIAnalysis?.transcription}&rdquo;</p>
               </div>
-            </div>
+            </CardContent>
+          </Card>
 
-            {/* Sentiment Analysis Section */}
-            <div>
-              <h4 className="font-medium text-slate-900 mb-3">{t.sentimentAnalysis}</h4>
-              <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-lg p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-600">{t.overallSentiment}:</span>
-                  <span className="font-semibold text-slate-900">{currentAIAnalysis?.aiSentimentAnalysis?.overallSentiment}</span>
+          {/* Right Column: Key Events + Cause Tree */}
+          <div className="flex flex-col gap-3 sm:gap-6 h-full lg:grid lg:grid-rows-2 lg:gap-6 lg:min-h-0">
+            {/* Key Events section */}
+            <Card className="bg-transparent border-transparent h-fit lg:h-full lg:max-h-[110vh] flex flex-col min-h-0">
+          <div>
+              {/* Title key_events Grid*/}
+              <div className="bg-[#303060] w-full h-16 rounded-lg p-4 flex items-center justify-between relative z-10 -mt-6">
+                <div className="flex items-center gap-4 w-full">
+                  <p className="text-xl font-medium text-white">{t.keyEvents}</p>
+                  <div className="flex gap-2 ml-auto p-2">
+                  {!isEditingEvents ? (
+                      <button
+                        onClick={() => handleEdit(currentAIAnalysis, "events")}
+                        className="bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 p-2 rounded-lg
+                          shadow-sm transition-all duration-200 group"
+                        title="Editar"
+                      >
+                        <Pencil className="w-5 h-5 text-slate-600 group-hover:scale-110 transition-transform" />
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleSave("events")}
+                          className="bg-green-500 hover:bg-green-600 p-2 rounded-lg transition-all duration-200 group"
+                          title="Guardar"
+                        >
+                          <Save className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                        </button>
+                        <button
+                          onClick={() => handleCancel("events")}
+                          className="bg-red-500 hover:bg-red-600 p-2 rounded-lg transition-all duration-200 group"
+                          title="Cancelar"
+                        >
+                          <X className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-
-                <div>
-                  <p className="text-sm text-slate-600 mb-2">{t.detectedEmotions}:</p>
-                  <div className="space-y-2">
-                    {currentAIAnalysis?.aiSentimentAnalysis?.detectedEmotions?.map((item:any, idx:number) => {
-                      const color =
-                        EMOTIONS_COLOR[item.emotion]?.color ?? "bg-slate-400";
-
-                      return (
-                        <div key={idx}>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-slate-700">{item.emotion}</span>
-                          <span className="font-medium text-slate-900">{item.percentage}%</span>
-                        </div>
-                        <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full ${color} transition-all`}
-                            style={{ width: `${item.percentage}%` }}
-                          />
+              </div>
+          </div>
+              <CardContent className="pt-16 bg-white rounded-xl -mt-14 sm:-mt-14 lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
+                <p className="text-sm text-slate-600 mb-4">{t.keyEventsDesc}</p>
+                <div className="space-y-0">
+                  {currentAIAnalysis?.aiSequence?.events?.map((event: any, index: number) => (
+                    <div key={index}>
+                      <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg mb-2">
+                        <div className="shrink-0 w-10 text-2xl font-semibold text-[#F88D00]">{index + 1}</div>
+                        <div className="flex-1 text-slate-700">
+                          {isEditingEvents ? (
+                            <input
+                              key={"input"+index}
+                              type="text"
+                              value={editingEvents?.aiSequence?.events[index].event}
+                              onChange={(e) => handleChange(`aiSequence.events.${index}.event`, e.target.value, "events")}
+                              className="w-full border-2 border-indigo-300 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500"
+                            />
+                          ) : (
+                            event.event
+                          )}
                         </div>
                       </div>
-                      );
-                    })}
-                  </div>
+                      {index < currentAIAnalysis?.aiSequence?.events?.length - 1 && (
+                        <div className="h-px bg-[#F88D00] "></div>
+                      )}
+                    </div>
+                  ))}
                 </div>
+              </CardContent>
+            </Card>
 
-                <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-200">
-                  <div>
-                    <span className="text-sm text-slate-600">{t.tone}:</span>
-                    <p className="font-medium text-slate-900">{currentAIAnalysis?.aiSentimentAnalysis?.tone}</p>
+            {/* Cause Tree section */}
+            <Card className="bg-transparent border-transparent h-fit lg:h-full lg:max-h-[110vh] flex flex-col min-h-0">
+              <div>
+              <div className="bg-[#303060] w-full h-16 rounded-lg p-4 flex items-center justify-between relative z-10 -mt-6">
+                  <div className="flex items-center gap-4 w-full">
+                      <p className="text-xl font-medium text-white">{t.causeTree}</p>
+                      <div className="flex gap-2 ml-auto p-2">
+                        {!isEditingTree ? (
+                            <button
+                              onClick={() => handleEdit(currentAIAnalysis, "tree")}
+                              className="bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 p-2 rounded-lg
+                                shadow-sm transition-all duration-200 group"
+                              title="Editar"
+                            >
+                              <Pencil className="w-5 h-5 text-slate-600 group-hover:scale-110 transition-transform" />
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleSave("tree")}
+                                className="bg-green-500 hover:bg-green-600 p-2 rounded-lg transition-all duration-200 group"
+                                title="Guardar"
+                              >
+                                <Save className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                              </button>
+                              <button
+                                onClick={() => handleCancel("tree")}
+                                className="bg-red-500 hover:bg-red-600 p-2 rounded-lg transition-all duration-200 group"
+                                title="Cancelar"
+                              >
+                                <X className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                              </button>
+                            </>
+                          )}
+                        </div>
                   </div>
-                  <div>
-                    <span className="text-sm text-slate-600">{t.confidence}:</span>
-                    <p className="font-medium text-slate-900">{currentAIAnalysis?.aiSentimentAnalysis?.confidence}%</p>
-                  </div>
-                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+              </div>
 
-        {/* Key Events section */}
-        <Card className="mb-6 bg-white/80 backdrop-blur-sm">
-          <CardHeader className="bg-gradient-to-r from-teal-100 to-cyan-100 gap-0">
-            <CardTitle className="flex items-center gap-2 p-2">
-              <ListOrdered className="h-5 w-5 text-teal-600" />
-              {t.keyEventsAndSequence || (language === "en" ? "Key Events and Sequence" : "Eventos Clave y Secuencia")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <p className="text-sm text-slate-600 mb-4">{t.keyEventsDesc}</p>
-            <div className="space-y-3">
-              {currentAIAnalysis?.aiSequence?.events?.map((event:any, index:number) => (
-                <div key={index} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
-                  <div className="flex-shrink-0 w-16 text-sm font-semibold text-blue-600">#{index + 1}</div>
-                  <div className="flex-1 text-slate-700">{event.event}</div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              <CardContent className="space-y-6 pt-12 bg-white rounded-xl -mt-14 sm:-mt-14 lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
 
-        {/* Cause Tree section */}
-        <Card className="mb-6 bg-white/80 backdrop-blur-sm">
-          <CardHeader className="bg-gradient-to-r from-amber-100 to-yellow-100 gap-0">
-            <CardTitle className="flex items-center gap-2 p-2">
-              <GitBranch className="h-5 w-5 text-amber-600" />
-              {t.causeTree || (language === "en" ? "Cause Tree" : "Árbol de Causas")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6 pt-6">
-            {/* Observable Facts */}
-            <div>
-              <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-red-500" />
-                {t.observedFacts}
-              </h4>
-              <ul className="space-y-2 ml-4">
-                {currentAIAnalysis?.aiHeader?.involved_equipment?.map((fact:any, index:number) => (
-                  <li key={index} className="flex items-start gap-2 text-slate-700">
-                    <span className="text-red-500 font-bold mt-1">•</span>
-                    <span>{fact}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Immediate Factors */}
-            <div>
-              <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-orange-500" />
-                {t.immediateFactors}
-              </h4>
-              <ul className="space-y-2 ml-4">
-                {currentAIAnalysis?.aiHeader?.involved_people?.map((factor:any, index:number) => (
-                  <li key={index} className="flex items-start gap-2 text-slate-700">
-                    <span className="text-orange-500 font-bold mt-1">•</span>
-                    <span>{factor}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Underlying Causes */}
-            <div>
-              <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-purple-500" />
-                {t.underlyingCauses}
-              </h4>
-              <ul className="space-y-2 ml-4">
-                {currentAIAnalysis?.aiRecommendations?.map((cause:any, index:number) => (
-                  <li key={index} className="flex items-start gap-2 text-slate-700">
-                    <span className="text-purple-500 font-bold mt-1">•</span>
-                    <span>{typeof cause === 'string' ? cause : cause?.description}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </CardContent>
-        </Card>
+                {/* Cause Tree Branches */}
+                {currentAIAnalysis?.aiAnalyzeRootCauses?.causal_branches ? (
+                  (isEditingTree 
+                    ? editingCausesTree.aiAnalyzeRootCauses?.causal_branches 
+                    : currentAIAnalysis?.aiAnalyzeRootCauses?.causal_branches
+                  )?.map((branch: any, index: number) => (
+                    <CauseBranch 
+                      key={branch.branch_id} 
+                      edit={isEditingTree} 
+                      branch={branch} 
+                      index={index} 
+                      handleChange={handleChange}
+                      translation={t}
+                    />
+                  ))
+                ) : (
+                  <div className="flex flex-1 items-center justify-center min-h-[200px]">
+                    <span>{t.noData}</span>
+                  </div>
+                )}
+              </CardContent>
+          </Card>
+          </div>
+        </div>
 
         {/* Comparative Analysis */}
-        {currentAIAnalysis?.aiHeader?.similar_cases && (        
-        <Card className="bg-white/80 backdrop-blur-sm mb-6">
-          <CardHeader className="bg-gradient-to-r from-violet-100 to-purple-100 gap-0">
-            <CardTitle className="flex items-center gap-2 p-2">
-              <BarChart3 className="h-5 w-5 text-violet-600" />
-              {t.comparativeAnalysis || (language === "en" ? "Comparative Analysis" : "Análisis Comparativo")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="space-y-6">
-              {/* Similar Cases */}
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900 mb-4">{t.similarCases}</h3>
-                <div className="space-y-4">
-                  {currentAIAnalysis?.aiHeader?.similar_cases?.map((caseItem: any, index: any) => (
-                    <div key={index} className="border-l-4 border-blue-500 pl-4 py-2 bg-blue-50/50">
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <p className="font-medium text-slate-900">
-                            {t.case} #{caseItem.id.substring(0,10)}
-                          </p>
-                          <p className="text-sm text-slate-600">{caseItem.description}</p>
+        {currentAIAnalysis?.aiHeader?.similar_cases && (
+          <Card className="bg-transparent border-transparent lg:h-175 flex flex-col min-h-0">
+          <div>
+              {/* Title AI_ANALYSIS Grid*/}
+              <div className="bg-[#303060] w-full h-16 rounded-lg p-4 flex items-center justify-between relative z-10 -mt-6">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <p className="text-xl font-medium text-white">{t.similarCases}</p>
+                  </div>
+                </div>
+              </div>
+          </div>
+            <CardContent className="pt-6 bg-white rounded-xl -mt-10 sm:-mt-14 lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
+              <div className="space-y-6">
+                {/* Similar Cases */}
+                <div className="pt-8">
+                  <div className="space-y-4">
+                    {currentAIAnalysis?.aiHeader?.similar_cases?.map((caseItem: any, index: any) => (
+                      <div key={index} className="border-l-4 border-blue-500 pl-4 py-2 bg-blue-50/50">
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <p className="font-medium text-slate-900">
+                              {t.case} #{caseItem.id.substring(0, 10)}
+                            </p>
+                            <p className="text-sm text-slate-600"><b> {caseItem.title ? caseItem.title + ": " : ""} </b>{caseItem.description}</p>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {caseItem.status}
+                          </Badge>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          {caseItem.status}
-                        </Badge>
-                      </div>
-                      <div className="text-sm text-slate-600">
-                        <p className="mb-1">
-                          <span className="font-medium">{t.similarity}:</span> {caseItem.similarity}%
-                        </p>
-                        {caseItem.average_resolution_time_days && (
-                          <p>
-                            <span className="font-medium">{t.resolutionTime}:</span> {caseItem.average_resolution_time_days} {t.hours}
+                        <div className="text-sm text-slate-600">
+                          <p className="mb-1">
+                            <span className="font-medium">{t.similarity}:</span> {caseItem.similarity}%
                           </p>
-                        )}
+                          {caseItem.average_resolution_time_days && (
+                            <p>
+                              <span className="font-medium">{t.resolutionTime}:</span> {caseItem.average_resolution_time_days} {t.hours}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* Actions Taken in Similar Cases */}
-              <div className="hidden">
-                <h3 className="text-lg font-semibold text-slate-900 mb-4">{t.actionsTaken}</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {incident?.actionsTaken?.map((action, index) => (
-                    <div
-                      key={index}
-                      className="flex items-start gap-3 p-3 bg-green-50/50 rounded-lg border border-green-200"
-                    >
-                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                      <div>
-                        <p className="font-medium text-slate-900">{action.action}</p>
-                        <p className="text-sm text-slate-600">
-                          {t.effectivenessRate}: {action.effectivenessRate}%
-                        </p>
+                {/* Actions Taken in Similar Cases */}
+                <div className="hidden">
+                  <h3 className="text-lg font-semibold text-slate-900 mb-4">{t.actionsTaken}</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {incident?.actionsTaken?.map((action, index) => (
+                      <div
+                        key={index}
+                        className="flex items-start gap-3 p-3 bg-green-50/50 rounded-lg border border-green-200"
+                      >
+                        <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                        <div>
+                          <p className="font-medium text-slate-900">{action.action}</p>
+                          <p className="text-sm text-slate-600">
+                            {t.effectivenessRate}: {action.effectivenessRate}%
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>)}
+            </CardContent>
+          </Card>)}
 
         {/* Timeline */}
         <Card className="mb-6 bg-white/80 backdrop-blur-sm hidden">
-          <CardHeader className="bg-gradient-to-r from-rose-100 to-red-100 gap-0">
+          <CardHeader className="bg-linear-to-r from-rose-100 to-red-100 gap-0">
             <CardTitle className="flex items-center gap-2 p-2">
               <Clock className="h-5 w-5 text-rose-600" />
               {t.timeline}
@@ -1096,13 +1673,12 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
                 <div key={index} className="flex items-start gap-4">
                   <div className="flex flex-col items-center">
                     <div
-                      className={`w-3 h-3 rounded-full ${
-                        event.status === "completed"
+                      className={`w-3 h-3 rounded-full ${event.status === "completed"
                           ? "bg-green-500"
                           : event.status === "in-progress"
                             ? "bg-blue-500"
                             : "bg-slate-300"
-                      }`}
+                        }`}
                     />
                     {index < (incident?.timeline?.length || 0) - 1 && <div className="w-0.5 h-12 bg-slate-200 my-1" />}
                   </div>
@@ -1124,6 +1700,86 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
         </Card>
       </div>
 
+      {/* Photo Zoom Modal */}
+      <Dialog
+        open={isPhotoZoomOpen}
+        onOpenChange={(open) => {
+          setIsPhotoZoomOpen(open)
+          if (!open) {
+            setIsZoomPhotoLoading(false)
+            setPhotoZoom(1)
+            setIsPhotoLoading(false)
+          }
+        }}
+      >
+        <DialogContent
+          className="max-w-[95vw] w-[95vw] sm:max-w-5xl max-h-[90vh] p-0 overflow-hidden bg-black/90 border-white/10 flex flex-col **:data-[slot=dialog-close]:text-white **:data-[slot=dialog-close]:hover:text-white"
+        >
+          <DialogHeader className="px-4 py-3 pr-14 border-b border-white/10 bg-black/40">
+            <div className="flex items-center justify-between gap-3">
+              <DialogTitle className="text-white text-base sm:text-lg">
+                {t.incidentPhoto}
+              </DialogTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="border-white/20 bg-white/10 hover:bg-white/20 text-white"
+                  onClick={zoomOutPhoto}
+                  disabled={photoZoom <= 1}
+                  aria-label="Zoom out"
+                >
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <span className="text-white text-sm font-medium min-w-[3rem] text-center">
+                  {Math.round(photoZoom * 100)}%
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="border-white/20 bg-white/10 hover:bg-white/20 text-white"
+                  onClick={zoomInPhoto}
+                  disabled={photoZoom >= 3}
+                  aria-label="Zoom in"
+                >
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="relative flex-1 overflow-auto">
+            {isZoomPhotoLoading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+                <Spinner className="w-10 h-10 text-white" />
+              </div>
+            )}
+
+            <div className="min-h-full min-w-full flex items-center justify-center p-4 sm:p-6">
+              <img
+                src={photos[currentPhotoIndex]?.url || "/placeholder.svg"}
+                alt={`Incident photo ${currentPhotoIndex + 1}`}
+                className="select-none"
+                draggable={false}
+                style={{ 
+                  transform: `scale(${photoZoom})`, 
+                  transformOrigin: "center",
+                  maxWidth: "100%",
+                  maxHeight: "calc(85vh - 80px)",
+                  width: "100%",
+                  height: "auto",
+                  objectFit: "contain"
+                }}
+                onLoad={() => setIsZoomPhotoLoading(false)}
+                onError={() => setIsZoomPhotoLoading(false)}
+              />
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Share Summary Modal */}
       <Dialog open={shareModalOpen} onOpenChange={setShareModalOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] p-0 flex flex-col">
@@ -1135,7 +1791,7 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
             <div className="space-y-4">
               {/* CHANGE: Updated to subtle blue gradient */}
               <div className="pb-3">
-                <div className="bg-gradient-to-r from-blue-100 to-indigo-100 text-gray-800 px-4 py-2 rounded-t-lg flex items-center gap-2">
+                <div className="bg-linear-to-r from-blue-100 to-indigo-100 text-gray-800 px-4 py-2 rounded-t-lg flex items-center gap-2">
                   <FileText className="h-5 w-5" />
                   <span className="font-semibold">{t.caseNumber || "Case Number"}</span>
                 </div>
@@ -1148,35 +1804,34 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
 
               {/* CHANGE: Updated to subtle purple gradient */}
               {photos.length > 0 && (
-              <div className="pb-3">
-                <div className="bg-gradient-to-r from-purple-100 to-pink-100 text-gray-800 px-4 py-2 rounded-t-lg flex items-center gap-2">
-                  <Camera className="h-5 w-5" />
-                  <span className="font-semibold">{t.incidentPhoto || "Incident Photo"}</span>
-                </div>
-                <div className="bg-white border border-t-0 rounded-b-lg p-4">
-                  <img
-                    src={photos[0].url || "/placeholder.svg"}
-                    alt={t.incidentPhoto || "Incident Photo"}
-                    className="w-full h-48 object-cover rounded-lg"
-                  />
-                </div>
-              </div>)}
+                <div className="pb-3">
+                  <div className="bg-linear-to-r from-purple-100 to-pink-100 text-gray-800 px-4 py-2 rounded-t-lg flex items-center gap-2">
+                    <Camera className="h-5 w-5" />
+                    <span className="font-semibold">{t.incidentPhoto || "Incident Photo"}</span>
+                  </div>
+                  <div className="bg-white border border-t-0 rounded-b-lg p-4">
+                    <img
+                      src={photos[0].url || "/placeholder.svg"}
+                      alt={t.incidentPhoto || "Incident Photo"}
+                      className="w-full h-48 object-cover rounded-lg"
+                    />
+                  </div>
+                </div>)}
 
               {/* CHANGE: Updated to subtle indigo gradient */}
               <div className="pb-3">
-                <div className="bg-gradient-to-r from-indigo-100 to-blue-100 text-gray-800 px-4 py-2 rounded-t-lg flex items-center gap-2">
+                <div className="bg-linear-to-r from-indigo-100 to-blue-100 text-gray-800 px-4 py-2 rounded-t-lg flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5" />
                   <span className="font-semibold">{t.severity}</span>
                 </div>
                 <div className="bg-white border border-t-0 rounded-b-lg p-4">
                   <span
-                    className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${
-                      currentAIAnalysis?.aiHeader?.severity === "3"
+                    className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${currentAIAnalysis?.aiHeader?.severity === "3"
                         ? "bg-red-100 text-red-800"
                         : currentAIAnalysis?.aiHeader?.severity === "1"
                           ? "bg-green-100 text-green-800"
                           : "bg-yellow-100 text-yellow-800"
-                    }`}
+                      }`}
                   >
                     {getSeverityLabel(currentAIAnalysis?.aiHeader?.severity)}
                   </span>
@@ -1185,7 +1840,7 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
 
               {/* CHANGE: Updated to subtle blue-indigo gradient */}
               <div className="pb-3">
-                <div className="bg-gradient-to-r from-blue-100 to-purple-100 text-gray-800 px-4 py-2 rounded-t-lg flex items-center gap-2">
+                <div className="bg-linear-to-r from-blue-100 to-purple-100 text-gray-800 px-4 py-2 rounded-t-lg flex items-center gap-2">
                   <MapPin className="h-5 w-5" />
                   <span className="font-semibold">{t.location}</span>
                 </div>
@@ -1198,7 +1853,7 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
 
               {/* CHANGE: Updated to subtle cyan-indigo gradient */}
               <div className="pb-3">
-                <div className="bg-gradient-to-r from-cyan-100 to-indigo-100 text-gray-800 px-4 py-2 rounded-t-lg flex items-center gap-2">
+                <div className="bg-linear-to-r from-cyan-100 to-indigo-100 text-gray-800 px-4 py-2 rounded-t-lg flex items-center gap-2">
                   <Users className="h-5 w-5" />
                   <span className="font-semibold">{t.peopleInvolved}</span>
                 </div>
@@ -1218,17 +1873,17 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
 
               {/* CHANGE: Updated to subtle indigo-purple gradient */}
               <div>
-                <div className="bg-gradient-to-r from-indigo-100 to-purple-100 text-gray-800 px-4 py-2 rounded-t-lg flex items-center gap-2">
+                <div className="bg-linear-to-r from-indigo-100 to-purple-100 text-gray-800 px-4 py-2 rounded-t-lg flex items-center gap-2">
                   <Lightbulb className="h-5 w-5" />
                   <span className="font-semibold">{t.recommendations}</span>
                 </div>
                 <div className="bg-white border border-t-0 rounded-b-lg p-4">
                   <ul className="space-y-1 list-disc list-inside">
-                    {currentAIAnalysis?.aiRecommendations?.map((rec:any, idx:number) => (
+                    {!currentAIAnalysis?.aiRecommendations.error ? currentAIAnalysis?.aiRecommendations?.map((rec: any, idx: number) => (
                       <li key={idx} className="text-sm">
                         {typeof rec === 'string' ? rec : rec?.description}
                       </li>
-                    ))}
+                    )) : null}
                   </ul>
                 </div>
               </div>
@@ -1293,9 +1948,8 @@ ${incident?.ai_analysis?.recommendations.map((r:any, i:any) => `${i + 1}. ${r}`)
             <Button
               onClick={handleSendToContacts}
               disabled={selectedContacts.length === 0}
-              className={`w-full ${
-                shareMethod === "whatsapp" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"
-              } text-white`}
+              className={`w-full ${shareMethod === "whatsapp" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"
+                } text-white`}
               size="lg"
             >
               {shareMethod === "whatsapp" ? (

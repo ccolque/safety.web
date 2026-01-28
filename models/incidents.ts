@@ -12,6 +12,12 @@ export interface IIncident {
     time: string
     multimedias: IMultimedia[]
     location: ILocation
+    detail?: {
+        status?: string
+        ai_analysis?: any
+        image_analysis?: any
+        [key: string]: any
+    }
     //ToDo a revisar estos datos
     severity?: string
     status?: string

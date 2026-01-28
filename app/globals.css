@@ -4,6 +4,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  --font-montserrat: var(--font-montserrat);
   --background: oklch(0.98 0.002 85);
   --foreground: oklch(0.15 0.012 276);
   --card: oklch(1 0 0);
@@ -306,4 +307,35 @@
   .shadow-lg {
     box-shadow: inherit !important;
   }
+}
+
+/* Montserrat Font */
+@supports (font-variation-settings: normal) {
+  .font-montserrat {
+    font-family: var(--font-montserrat, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif);
+  }
+}
+
+/* Table Header Transparent Background */
+thead tr {
+  background-color: transparent !important;
+}
+
+thead tr:hover {
+  background-color: transparent !important;
+}
+
+/* Make only thead transparent, keep tbody white */
+.bg-white table thead {
+  background-color: transparent !important;
+}
+
+.bg-white table thead tr,
+.bg-white table thead tr:hover {
+  background-color: transparent !important;
+}
+
+/* Apply white background only to tbody, not thead */
+.bg-white table tbody {
+  background-color: white !important;
 }
