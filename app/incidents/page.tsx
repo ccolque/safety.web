@@ -322,6 +322,11 @@ export default function IncidentsPage() {
 }, [])
 
   useEffect(() => {
+    // In dev (React StrictMode), effects mount/unmount twice.
+    // Ensure we reset the flag on mount so state updates (e.g. clearing loaders)
+    // are not accidentally skipped.
+    isMountedRef.current = true
+
     return () => {
       isMountedRef.current = false
       Object.values(sseByIncidentIdRef.current).forEach((es) => {
@@ -704,6 +709,37 @@ export default function IncidentsPage() {
     router.push(`/incidents/${id}?lang=${language}`)
   }
 
+  const isReprocessInProgressStatus = (st?: string) => {
+    if (!st) return false
+    return (
+      st === "pending_analysis" ||
+      st === "reprocessing" ||
+      st === "uploading_files" ||
+      st === "transcribing_audio" ||
+      st === "analyzing_ai" ||
+      st === "analyzing_images"
+    )
+  }
+
+  const isIncidentDisabled = (incident: IIncident) => {
+    const st = getIncidentStatus(incident)
+    return !!reprocessLoadingById[incident.id] || isReprocessInProgressStatus(st)
+  }
+
+  const tryViewIncident = (incident: IIncident) => {
+    if (isIncidentDisabled(incident)) {
+      const msg =
+        language === "en"
+          ? "This incident is being reprocessed"
+          : language === "fr"
+            ? "Cet incident est en cours de relance"
+            : "Este incidente se está reprocesando"
+      toast({ title: t.reprocessing, description: msg })
+      return
+    }
+    handleViewIncident(incident.id)
+  }
+
   const updateIncidentInList = (updated: IIncident) => {
     setIncidents((prev) => prev.map((it) => (it.id === updated.id ? updated : it)))
   }
@@ -962,16 +998,22 @@ export default function IncidentsPage() {
             })();
 
             const sev = getAIAnalysisSeverity(incident)
+            const disabled = isIncidentDisabled(incident)
 
             return (
               <div
                 key={incident.id}
-                className="bg-white/95 backdrop-blur rounded-xl shadow-sm border border-white/20 p-4"
+                className={
+                  "bg-white/95 backdrop-blur rounded-xl shadow-sm border border-white/20 p-4 " +
+                  (disabled ? "opacity-60 cursor-not-allowed" : "")
+                }
                 role="button"
-                tabIndex={0}
-                onClick={() => handleViewIncident(incident.id)}
+                tabIndex={disabled ? -1 : 0}
+                aria-disabled={disabled}
+                onClick={() => tryViewIncident(incident)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") handleViewIncident(incident.id)
+                  if (disabled) return
+                  if (e.key === "Enter" || e.key === " ") tryViewIncident(incident)
                 }}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -1055,12 +1097,17 @@ export default function IncidentsPage() {
               </TableRow>
             </TableHeader>
             <TableBody className="bg-white">
-              {sortedIncidents.map((incident) => (
-                <TableRow
+              {sortedIncidents.map((incident) => {
+                const disabled = isIncidentDisabled(incident)
+
+                return (
+                  <TableRow
                   key={incident.id}
-                  className="hover:bg-slate-50 cursor-pointer"
+                  className={
+                    (disabled ? "opacity-60 cursor-not-allowed" : "hover:bg-slate-50 cursor-pointer")
+                  }
                   style={{ borderRadius: '12px', overflow: 'hidden' }}
-                  onClick={() => handleViewIncident(incident.id)}
+                  onClick={() => tryViewIncident(incident)}
                 >
                   <TableCell className="font-medium text-slate-900 py-6 px-4" style={{ borderTopLeftRadius: '12px', borderBottomLeftRadius: '12px' }}>#{incident.id.substring(0,10)}</TableCell>
                   <TableCell className="text-slate-700 py-6 px-4">
@@ -1126,7 +1173,8 @@ export default function IncidentsPage() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                )
+              })}
               {sortedIncidents.length === 0 && (
                   <TableRow>
                     <TableCell

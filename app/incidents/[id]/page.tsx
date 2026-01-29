@@ -134,6 +134,10 @@ const translations = {
 
     status_pending_analysis: "Pending analysis",
     status_reprocessing: "Reprocessing",
+    status_uploading_files: "Uploading files",
+    status_transcribing_audio: "Transcribing audio",
+    status_analyzing_ai: "Analyzing (AI)",
+    status_analyzing_images: "Analyzing images",
     status_analysis_completed: "Completed",
     status_analysis_failed: "Failed",
   },
@@ -231,6 +235,10 @@ const translations = {
 
     status_pending_analysis: "Pendiente de análisis",
     status_reprocessing: "Reprocesando",
+    status_uploading_files: "Subiendo archivos",
+    status_transcribing_audio: "Transcribiendo audio",
+    status_analyzing_ai: "Analizando (IA)",
+    status_analyzing_images: "Analizando imágenes",
     status_analysis_completed: "Completado",
     status_analysis_failed: "Fallido",
   },
@@ -326,6 +334,10 @@ const translations = {
 
     status_pending_analysis: "Analyse en attente",
     status_reprocessing: "Relance en cours",
+    status_uploading_files: "Téléversement des fichiers",
+    status_transcribing_audio: "Transcription audio",
+    status_analyzing_ai: "Analyse (IA)",
+    status_analyzing_images: "Analyse d'images",
     status_analysis_completed: "Terminé",
     status_analysis_failed: "Échec",
   },
@@ -379,6 +391,10 @@ export default function IncidentDetailPage() {
     if (!status) return "-"
     if (status === "pending_analysis") return (t as any).status_pending_analysis
     if (status === "reprocessing") return (t as any).status_reprocessing
+    if (status === "uploading_files") return (t as any).status_uploading_files
+    if (status === "transcribing_audio") return (t as any).status_transcribing_audio
+    if (status === "analyzing_ai") return (t as any).status_analyzing_ai
+    if (status === "analyzing_images") return (t as any).status_analyzing_images
     if (status === "analysis_completed") return (t as any).status_analysis_completed
     if (status === "analysis_failed") return (t as any).status_analysis_failed
     return status
