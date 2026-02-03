@@ -28,6 +28,81 @@ export const STATUS = [
     }
 ]
 
+export const RESPONSIBLES:any = [
+    {
+        code: "code_security",
+        en: {
+            name: "Security"
+        },
+        es: {
+            name: "Seguridad"
+        },
+        fr: {
+            name: "Sécurité"
+        }
+    },
+    {
+        code: "code_engineering",
+        en: {
+            name: "Engineering"
+        },
+        es: {
+            name: "Ingeniería"
+        },
+        fr: {
+            name: "Ingénierie"
+        }
+    },
+    {
+        code: "code_operations",
+        en: {
+            name: "Operations"
+        },
+        es: {
+            name: "Operaciones"
+        },
+        fr: {
+            name: "Opérations"
+        }
+    },
+    {
+        code: "code_supervision",
+        en: {
+            name: "Supervision"
+        },
+        es: {
+            name: "Supervisión"
+        },
+        fr: {
+            name: "Surveillance"
+        }
+    },
+    {
+        code: "code_rr_hh",
+        en: {
+            name: "HR"
+        },
+        es: {
+            name: "RR. HH."
+        },
+        fr: {
+            name: "Surveillance"
+        }
+    },
+    {
+        code: "code_hse",
+        en: {
+            name: "HSE"
+        },
+        es: {
+            name: "HSE"
+        },
+        fr: {
+            name: "HSE"
+        }
+    },
+]
+
 export const EMOTIONS_COLOR: Record<
   string,
   { color: string }

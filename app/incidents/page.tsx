@@ -194,6 +194,44 @@ export default function IncidentsPage() {
   const t = translations[language]
   const { toast } = useToast()
 
+  const REPROCESS_STORAGE_KEY = "horus.reprocess.activeById"
+  type ReprocessStorage = Record<string, number>
+
+  const readReprocessStorage = (): ReprocessStorage => {
+    if (typeof window === "undefined") return {}
+    try {
+      const raw = window.localStorage.getItem(REPROCESS_STORAGE_KEY)
+      const parsed = raw ? (JSON.parse(raw) as unknown) : {}
+      if (!parsed || typeof parsed !== "object") return {}
+      return parsed as ReprocessStorage
+    } catch {
+      return {}
+    }
+  }
+
+  const writeReprocessStorage = (next: ReprocessStorage) => {
+    if (typeof window === "undefined") return
+    try {
+      window.localStorage.setItem(REPROCESS_STORAGE_KEY, JSON.stringify(next))
+    } catch {
+      // ignore storage errors (private mode, quota, etc.)
+    }
+  }
+
+  const markReprocessActive = (id: string, startedAt = Date.now()) => {
+    const store = readReprocessStorage()
+    store[id] = startedAt
+    writeReprocessStorage(store)
+  }
+
+  const unmarkReprocessActive = (id: string) => {
+    const store = readReprocessStorage()
+    if (id in store) {
+      delete store[id]
+      writeReprocessStorage(store)
+    }
+  }
+
   // const incidents = getIncidentData(language)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -215,6 +253,7 @@ export default function IncidentsPage() {
   const [reprocessStartedAtById, setReprocessStartedAtById] = useState<Record<string, number>>({})
   const isMountedRef = useRef(true)
   const sseByIncidentIdRef = useRef<Record<string, EventSource>>({})
+  const watchingReprocessByIdRef = useRef<Record<string, boolean>>({})
   
   // Paginación
   const [currentPage, setCurrentPage] = useState(1)
@@ -335,6 +374,198 @@ export default function IncidentsPage() {
       sseByIncidentIdRef.current = {}
     }
   }, [])
+
+  const clearReprocessUiState = (id: string) => {
+    setReprocessLoadingById((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+    setReprocessStartedAtById((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+    unmarkReprocessActive(id)
+    delete watchingReprocessByIdRef.current[id]
+  }
+
+  const watchReprocessUntilDone = async (
+    id: string,
+    opts?: {
+      showProgressToasts?: boolean
+      showCompletionToast?: boolean
+      preferSSE?: boolean
+      sseGraceMs?: number
+    }
+  ) => {
+    const showProgressToasts = opts?.showProgressToasts ?? true
+    const showCompletionToast = opts?.showCompletionToast ?? true
+    const preferSSE = opts?.preferSSE ?? true
+    const sseGraceMs = opts?.sseGraceMs ?? 25_000
+
+    if (watchingReprocessByIdRef.current[id]) return
+    watchingReprocessByIdRef.current[id] = true
+
+    setReprocessLoadingById((prev) => ({ ...prev, [id]: true }))
+    markReprocessActive(id)
+
+    try {
+      // 1) Chequeo rápido: si ya terminó (p.ej. el usuario navegó y volvió),
+      // limpiamos el loading inmediatamente sin depender del SSE.
+      const initial = await getIncidentStatusApi(id)
+      if (initial.data?.status === "analysis_failed") {
+        if (showCompletionToast) {
+          toast({
+            title: t.reprocessFailed,
+            description: initial.data?.status_message,
+            variant: "destructive",
+          })
+        }
+        // Intentamos refrescar el incidente para que el status visible deje de ser "reprocessing".
+        const updated = await getIncidentByIdApi(id)
+        if (updated.data) updateIncidentInList(updated.data)
+        else await loadIncidents(currentPage)
+        clearReprocessUiState(id)
+        return
+      }
+      if (initial.data?.status === "analysis_completed") {
+        const updated = await getIncidentByIdApi(id)
+        if (updated.data) updateIncidentInList(updated.data)
+        else await loadIncidents(currentPage)
+        if (showCompletionToast) toast({ title: t.reprocessCompleted })
+        clearReprocessUiState(id)
+        return
+      }
+
+      // 2) Preferimos SSE, pero con "grace timeout" para no quedar colgados
+      // si el EventSource no recibe eventos (o se corta al navegar).
+      if (preferSSE) {
+        try {
+          await Promise.race([
+            waitForReprocessDoneSSE(id),
+            sleep(sseGraceMs).then(() => {
+              throw new Error("SSE grace exceeded")
+            }),
+          ])
+
+          const updated = await getIncidentByIdApi(id)
+          if (updated.data) updateIncidentInList(updated.data)
+          else await loadIncidents(currentPage)
+          if (showCompletionToast) toast({ title: t.reprocessCompleted })
+          clearReprocessUiState(id)
+          return
+        } catch {
+          // fallback a polling liviano
+        }
+      }
+
+      const pollIntervalMs = 2500
+      const maxTotalMs = 10 * 60 * 1000
+      const startedAt = Date.now()
+      let lastStep: string | undefined
+      let transientErrors = 0
+
+      while (isMountedRef.current && Date.now() - startedAt < maxTotalMs) {
+        await sleep(pollIntervalMs)
+        if (!isMountedRef.current) return
+
+        const st = await getIncidentStatusApi(id)
+        if (st.error) {
+          transientErrors++
+          if (transientErrors >= 6) return
+          continue
+        }
+        transientErrors = 0
+
+        const status = st.data?.status
+        const step = st.data?.status_step
+        const message = st.data?.status_message
+
+        if (showProgressToasts && step && step !== lastStep) {
+          lastStep = step
+          if (message) toast({ title: t.reprocessing, description: message })
+        }
+
+        if (status === "analysis_failed") {
+          if (showCompletionToast) {
+            toast({ title: t.reprocessFailed, description: message, variant: "destructive" })
+          }
+          const updated = await getIncidentByIdApi(id)
+          if (updated.data) updateIncidentInList(updated.data)
+          else await loadIncidents(currentPage)
+          clearReprocessUiState(id)
+          return
+        }
+
+        if (status === "analysis_completed") {
+          const updated = await getIncidentByIdApi(id)
+          if (updated.data) updateIncidentInList(updated.data)
+          else await loadIncidents(currentPage)
+          if (showCompletionToast) toast({ title: t.reprocessCompleted })
+          clearReprocessUiState(id)
+          return
+        }
+      }
+
+      // Si se sigue procesando, dejamos el estado activo para reintentar al volver/focus.
+    } finally {
+      delete watchingReprocessByIdRef.current[id]
+    }
+  }
+
+  const resumeReprocessWatchers = () => {
+    const stored = readReprocessStorage()
+    const idsFromStorage = Object.keys(stored)
+    const idsFromList = incidents
+      .filter((it) => isReprocessInProgressStatus(getIncidentStatus(it)))
+      .map((it) => it.id)
+    const ids = Array.from(new Set([...idsFromStorage, ...idsFromList]))
+
+    if (ids.length === 0) return
+
+    setReprocessStartedAtById((prev) => {
+      const next = { ...prev }
+      for (const id of ids) {
+        next[id] = stored[id] ?? next[id] ?? Date.now()
+      }
+      return next
+    })
+    setReprocessLoadingById((prev) => {
+      const next = { ...prev }
+      for (const id of ids) next[id] = true
+      return next
+    })
+
+    for (const id of ids) {
+      // Al reanudar, evitamos spamear toasts de progreso.
+      void watchReprocessUntilDone(id, {
+        showProgressToasts: false,
+        showCompletionToast: true,
+        preferSSE: false,
+      })
+    }
+  }
+
+  useEffect(() => {
+    // Reengancha watchers cuando hay incidents en pantalla.
+    resumeReprocessWatchers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incidents.length])
+
+  useEffect(() => {
+    const onFocus = () => resumeReprocessWatchers()
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") resumeReprocessWatchers()
+    }
+    window.addEventListener("focus", onFocus)
+    document.addEventListener("visibilitychange", onVisibility)
+    return () => {
+      window.removeEventListener("focus", onFocus)
+      document.removeEventListener("visibilitychange", onVisibility)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incidents.length])
 
   const getIncidentStatus = (incident: IIncident): string | undefined => {
     return (incident as any)?.detail?.status ?? (incident as any)?.status
@@ -802,93 +1033,25 @@ export default function IncidentsPage() {
       const response = await reprocessIncident(id)
       if (response.error) {
         toast({ title: "Error", description: response.error, variant: "destructive" })
+        clearReprocessUiState(id)
         return
       }
-      setReprocessStartedAtById((prev) => ({ ...prev, [id]: Date.now() }))
+      const startedAt = Date.now()
+      setReprocessStartedAtById((prev) => ({ ...prev, [id]: startedAt }))
+      markReprocessActive(id, startedAt)
       toast({ title: t.reprocessStarted, description: t.reprocessing })
 
-      // Preferimos SSE (cero polling). Si falla, caemos al endpoint liviano /status.
-      try {
-        await waitForReprocessDoneSSE(id)
-        const updated = await getIncidentByIdApi(id)
-        if (updated.data) updateIncidentInList(updated.data)
-        toast({ title: t.reprocessCompleted })
-        return
-      } catch {
-        // fallback a polling liviano
-      }
-
-      // Polling liviano al status (NO llama al incidente completo hasta que termine).
-      const pollIntervalMs = 2500
-      const maxTotalMs = 8 * 60 * 1000
-      const startedAt = Date.now()
-      let lastStep: string | undefined
-      let transientErrors = 0
-
-      while (isMountedRef.current && Date.now() - startedAt < maxTotalMs) {
-        await sleep(pollIntervalMs)
-        if (!isMountedRef.current) return
-
-        const st = await getIncidentStatusApi(id)
-        if (st.error) {
-          transientErrors++
-          if (transientErrors >= 6) {
-            const msg =
-              language === "en"
-                ? "Could not read status; try again later"
-                : language === "fr"
-                  ? "Impossible de lire le status; réessayez plus tard"
-                  : "No se pudo leer el status; probá más tarde"
-            toast({ title: t.reprocessing, description: msg })
-            return
-          }
-          continue
-        }
-        transientErrors = 0
-
-        const status = st.data?.status
-        const step = st.data?.status_step
-        const message = st.data?.status_message
-
-        // Mensaje de progreso solo cuando cambia el step (evita spam)
-        if (step && step !== lastStep) {
-          lastStep = step
-          if (message) {
-            toast({ title: t.reprocessing, description: message })
-          }
-        }
-
-        if (status === "analysis_failed") {
-          toast({ title: t.reprocessFailed, description: message, variant: "destructive" })
-          return
-        }
-
-        if (status === "analysis_completed") {
-          const updated = await getIncidentByIdApi(id)
-          if (updated.data) updateIncidentInList(updated.data)
-          toast({ title: t.reprocessCompleted })
-          return
-        }
-      }
-
-      const msg =
-        language === "en"
-          ? "Still processing in background. Refresh later."
-          : language === "fr"
-            ? "Toujours en cours en arrière-plan. Rafraîchissez plus tard."
-            : "Sigue procesando en segundo plano. Refrescá más tarde."
-      toast({ title: t.reprocessing, description: msg })
+      // Escuchamos completion (SSE con fallback polling). Si el usuario navega y vuelve,
+      // se reanuda desde localStorage.
+      await watchReprocessUntilDone(id, {
+        showProgressToasts: true,
+        showCompletionToast: true,
+        preferSSE: true,
+      })
     } catch (error) {
       console.error("Error reprocesando incidente:", error)
       toast({ title: t.reprocessFailed, description: "Error inesperado", variant: "destructive" })
-    } finally {
-      if (isMountedRef.current) {
-        setReprocessLoadingById((prev) => {
-          const next = { ...prev }
-          delete next[id]
-          return next
-        })
-      }
+      clearReprocessUiState(id)
     }
   }
 

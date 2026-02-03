@@ -155,3 +155,21 @@ export async function updateIncident(incident: IIncident): Promise<ApiResponse<I
     throw error
   }  
 }
+
+export async function translate_data(data: any, lang: string): Promise<ApiResponse<any>> {
+  try {
+    const response = await apiClient.post('/incidents/translate', {
+      data,
+      original_lang: lang
+    }) 
+
+    return {
+      data: response.data,
+      error: response.error,
+      status: response.status,
+    }
+  } catch (error) {
+    console.warn('No se pudo traducir el json:', error)
+    throw error
+  }  
+}

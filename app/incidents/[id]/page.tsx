@@ -29,17 +29,21 @@ import {
   Save,
   Pencil,
   X,
+  Plus,
+  Trash2,
 } from "lucide-react"
 import { useState, useRef, useEffect } from "react"
 import { IIncident } from "@/models/incidents"
 import { IMultimedia } from "@/models/multimedia"
-import { getIncidentsById, updateIncident } from "@/services/incident-service"
+import { getIncidentsById, translate_data, updateIncident } from "@/services/incident-service"
 import { Spinner } from "@/components/ui/spinner"
-import { EMOTIONS_COLOR, Language, LANGUAGES } from "@/lib/constants"
+import { EMOTIONS_COLOR, Language, LANGUAGES, RESPONSIBLES } from "@/lib/constants"
 import { CustomGoogleMap } from "@/components/custom-google-map"
 import { useToast } from "@/hooks/use-toast"
 import { CauseBranch } from "@/components/cause-tree"
 import { CausalBranches } from "@/models/analyzeRootCauses"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 
 const translations = {
   en: {
@@ -61,7 +65,8 @@ const translations = {
     title: "Title",
     audioReport: "Report Audio",
     inconsistencies: "Inconsistencies",
-    recommendations: "AI-Generated Recommendations",
+    recommendations: "AI-Generated Corrective Actions",
+    inmediate_actions: "AI-Generated Immediate Actions",
     keyEvents: "Key Events and Sequence",
     keyEventsDesc: "Chronological sequence of main events to make implicit information explicit and unambiguous.",
     causeTree: "Cause Tree",
@@ -140,6 +145,25 @@ const translations = {
     status_analyzing_images: "Analyzing images",
     status_analysis_completed: "Completed",
     status_analysis_failed: "Failed",
+
+    action_pending: "Pending Action",
+    action_progress: "Action In Progress",
+    action_finished: "Action Finished",
+    new_action: "New Action",
+    fieldAction: "Action",
+    fieldResponsible: "Responsible",
+    fieldCharge: "In charge from",
+    fieldStatus: "Current Status",
+    fieldDate: "Date",
+    fieldTime: "Time",
+    cancel: "Cancel",
+    create: "Create Action",
+    deleteActionTitle: "Delete Action",
+    deleteActionMessage: "Are you sure you want to delete this action? This action cannot be undone.",
+    deleteActionConfirm: "Delete",
+    deleteActionCancel: "Cancel",
+    actionDeleted: "Action deleted successfully",
+    select: "Select"
   },
   es: {
     fieldRequired: "El campo {field} es obligatorio",
@@ -160,7 +184,8 @@ const translations = {
     title: "Titulo",
     audioReport: "Audio del Reporte",
     inconsistencies: "Inconsistencias",
-    recommendations: "Recomendaciones Generadas por IA",
+    recommendations: "Acciones Correctivas Generadas por IA",
+    inmediate_actions: "Acciones Inmediatas Generadas por IA",
     keyEvents: "Eventos Clave y su Secuencia",
     keyEventsDesc:
       "Secuencia cronológica de los eventos principales para hacer la información implícita explícita y unívoca.",
@@ -241,6 +266,25 @@ const translations = {
     status_analyzing_images: "Analizando imágenes",
     status_analysis_completed: "Completado",
     status_analysis_failed: "Fallido",
+
+    action_pending: "Acción Pendiente",
+    action_progress: "Acción en Progreso",
+    action_finished: "Acción Finalizada",
+    new_action: "Nueva Acción",
+    fieldAction: "Acción",
+    fieldResponsible: "Responsable",
+    fieldCharge: "A cargo desde",
+    fieldStatus: "Estado actual",
+    fieldDate: "Fecha",
+    fieldTime: "Hora",
+    cancel: "Cancelar",
+    create: "Crear Acción",
+    deleteActionTitle: "Eliminar Acción",
+    deleteActionMessage: "¿Estás seguro de que deseas eliminar esta acción? Esta acción no se puede deshacer.",
+    deleteActionConfirm: "Eliminar",
+    deleteActionCancel: "Cancelar",
+    actionDeleted: "Acción eliminada exitosamente",
+    select: "Seleccione"
   },
   fr: {
     fieldRequired: "Le champ {field} est obligatoire.",
@@ -261,7 +305,8 @@ const translations = {
     title: "Titre",
     audioReport: "Audio du Rapport",
     inconsistencies: "Incohérences",
-    recommendations: "Recommandations Générées par IA",
+    recommendations: "Actions Correctives Générées par IA",
+    inmediate_actions: "Actions Immédiates Générées par IA",
     keyEvents: "Événements Clés et Séquence",
     keyEventsDesc: "Séquence chronologique des événements principaux pour rendre l'information implicite explicite et sans ambiguïté.",
     causeTree: "Arbre des Causes",
@@ -340,6 +385,25 @@ const translations = {
     status_analyzing_images: "Analyse d'images",
     status_analysis_completed: "Terminé",
     status_analysis_failed: "Échec",
+
+    action_pending: "Action en Attente",
+    action_progress: "Action en Cours",
+    action_finished: "Action Terminée",
+    new_action: "Nouvelle Action",
+    fieldAction: "Action",
+    fieldResponsible: "Responsable",
+    fieldCharge: "En charge de",
+    fieldStatus: "Statut Actuel",
+    fieldDate: "Date",
+    fieldTime: "Heure",
+    cancel: "Annuler",
+    create: "Créer une Action",
+    deleteActionTitle: "Supprimer l'action",
+    deleteActionMessage: "Êtes-vous sûr de vouloir supprimer cette action ? Cette action ne peut pas être annulée.",
+    deleteActionConfirm: "Supprimer",
+    deleteActionCancel: "Annuler",
+    actionDeleted: "Action supprimée avec succès",
+    select: "Sélectionner"
   },
 }
 
@@ -362,6 +426,7 @@ export default function IncidentDetailPage() {
   const audioRef = useRef<any | null>(null)
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [isModalOpen, setIsModalOpen] = useState(false)
   const GOOGLE_MAP_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
   //Header
   const [isEditingHeader, setIsEditingHeader] = useState(false);
@@ -378,6 +443,21 @@ export default function IncidentDetailPage() {
   //Cause tree
   const [isEditingTree, setIsEditingTree] = useState(false);
   const [editingCausesTree, setEditingCauseTree] = useState<any>(null);
+  //Recomendations
+  const [isEditingRecomendations, setIsEditingRecomendations] = useState(false);
+  const [editingRecomendations, setEditingRecomendations] = useState<any>(null);
+  //Actions
+  const [isEditingActions, setIsEditingActions] = useState(false);
+  const [editingActions, setEditingActions] = useState<any>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [actionToDelete, setActionToDelete] = useState<{ action: any; index: number } | null>(null);
+
+    //Form
+  const [action, setAction] = useState("")
+  const [responsible, setResponsible] = useState("")
+  const [date, setDate] = useState("")
+  const [time, setTime] = useState("")
+  const [currentStatus, setCurrentStatus] = useState("")
 
 
   const { toast } = useToast()
@@ -398,6 +478,21 @@ export default function IncidentDetailPage() {
     if (status === "analysis_completed") return (t as any).status_analysis_completed
     if (status === "analysis_failed") return (t as any).status_analysis_failed
     return status
+  }
+
+  const getActionStatusLabel = (status?: string) => {
+    if (!status) return "-"
+    if (status === "action_pending") return (t as any).action_pending
+    if (status === "action_progress") return (t as any).action_progress
+    if (status === "action_finished") return (t as any).action_finished
+    return status
+  }
+
+  const getResponsibleLabel = (code: string, lang: string) => {
+    if (!code) return "-"
+    const responsible = RESPONSIBLES.find((r:any) => r.code === code)
+
+    return responsible?.[lang]?.name ?? "-"
   }
 
   const handleEdit = (data:any, card:string) => {
@@ -422,6 +517,127 @@ export default function IncidentDetailPage() {
       setIsEditingTree(true);
       setEditingCauseTree(data);
     }
+    if (card === "recomendations"){
+      setIsEditingRecomendations(true);
+      setEditingRecomendations(data);
+    }
+    if (card === "actions"){
+      setIsEditingActions(true);
+      setEditingActions(data);
+    }
+  };
+
+  const handleCreateAction = async () => {    
+    if (!action.trim()) {
+      toast({ title: "Error", description: `Error: ${t.fieldRequired.replace("{field}",t.fieldAction)}`, variant: "destructive", })
+      return
+    }
+
+    if (!responsible.trim() || responsible === "-") {      
+      toast({ title: "Error", description: `Error: ${t.fieldRequired.replace("{field}",t.fieldResponsible)}`, variant: "destructive", })
+      return
+    }
+
+    if (!date.trim()) {
+      toast({ title: "Error", description: `Error: ${t.fieldRequired.replace("{field}",t.fieldDate)}`, variant: "destructive", })
+      return
+    }
+
+    if (!time.trim()) {
+      toast({ title: "Error", description: `Error: ${t.fieldRequired.replace("{field}",t.fieldTime)}`, variant: "destructive", })
+      return
+    }
+
+    if (!currentStatus.trim()  || currentStatus === "-") {
+      toast({ title: "Error", description: `Error: ${t.fieldRequired.replace("{field}",t.fieldStatus)}`, variant: "destructive", })
+      return
+    }
+    const actionRow = {
+      action: action,
+      responsible: responsible,
+      start_date: date,
+      start_time: time,
+      status: currentStatus,
+      status_date: new Date().toISOString()
+    }    
+
+    setIsLoading(true)
+
+    const translate = await translate_data(actionRow, editingActions.lang)
+    if (translate.data){
+      const aiInmediateActions = JSON.parse(JSON.stringify(editingActions.aiInmediateActions))
+      aiInmediateActions.push(actionRow)
+      if (!incident) return
+      const incidentAux = JSON.parse(JSON.stringify(incident))
+      incidentAux.ai_analysis[`ai_analysis_${editingActions.lang}`].aiInmediateActions = aiInmediateActions
+
+      LANGUAGES.forEach((l) => {
+        if (l !== editingActions.lang){
+          const actions_orig = JSON.parse(JSON.stringify(incidentAux.ai_analysis[`ai_analysis_${l}`].aiInmediateActions ))
+          actions_orig.push(translate.data[`data_${l}`])
+          incidentAux.ai_analysis[`ai_analysis_${l}`].aiInmediateActions = actions_orig
+        }
+      })
+
+      setIsEditingActions(false);
+
+      const response = await updateIncident(incidentAux)
+      if (response.data) {
+        setIncident(response.data);
+      }
+    }        
+    setIsLoading(false)
+    setIsModalOpen(false)
+    cleanForm()
+  }
+
+  const handleDelete = (action: any, index: number) => {
+    setActionToDelete({ action, index });
+    setIsDeleteModalOpen(true);
+  };
+
+  // función para confirmar la eliminación
+  const confirmDelete = async () => {
+    if (actionToDelete) {
+      const aiInmediateActions = JSON.parse(JSON.stringify(editingActions.aiInmediateActions))
+      aiInmediateActions.splice(actionToDelete.index, 1);
+      
+      if (!incident) return
+      const incidentAux = JSON.parse(JSON.stringify(incident))
+      incidentAux.ai_analysis[`ai_analysis_${editingActions.lang}`].aiInmediateActions = aiInmediateActions
+
+      LANGUAGES.forEach((l) => {
+        if (l !== editingActions.lang){
+          const actions_orig = JSON.parse(JSON.stringify(incidentAux.ai_analysis[`ai_analysis_${l}`].aiInmediateActions ))
+          actions_orig.splice(actionToDelete.index, 1);
+          incidentAux.ai_analysis[`ai_analysis_${l}`].aiInmediateActions = actions_orig
+        }
+      })
+
+
+      setIsEditingActions(false);
+
+      setIsLoading(true)
+      const response = await updateIncident(incidentAux)
+      if (response.data) {
+        setIncident(response.data);
+      }    
+      setIsLoading(false)
+
+      toast({
+        title: t.actionDeleted,
+        variant: "default",
+      });
+    }
+    
+    setIsDeleteModalOpen(false);
+    setActionToDelete(null);
+  };
+
+  // Función para cancelar la eliminación
+  const cancelDelete = () => {
+    setIsDeleteModalOpen(false);
+    setActionToDelete(null);
   };
 
   const handleSave = async (card:string) => {
@@ -484,13 +700,6 @@ export default function IncidentDetailPage() {
     }
 
     if (card === "analysis_ia"){
-      const validateRecomendations = validateArray(editingAnalisisIA.aiRecommendations, "description")
-
-      if (!validateRecomendations){
-        toast({ title: "Error", description: `Error: ${t.fieldsRequired.replace("{field}",t.recommendations)}`, variant: "destructive", })
-        return
-      }
-
       if (!editingAnalisisIA.aiHeader.summary.trim()) {
         toast({ title: "Error", description: `Error: ${t.fieldRequired.replace("{field}",t.summary)}`, variant: "destructive", })
         return
@@ -504,7 +713,6 @@ export default function IncidentDetailPage() {
         toast({ title: "Error", description: `Error: ${t.fieldRequired.replace("{field}",t.overallSentiment)}`, variant: "destructive", })
         return
       }
-      incidentAux.ai_analysis[`ai_analysis_${editingAnalisisIA.lang}`].aiRecommendations = editingAnalisisIA.aiRecommendations
       incidentAux.ai_analysis[`ai_analysis_${editingAnalisisIA.lang}`].aiHeader.summary = editingAnalisisIA.aiHeader.summary
       incidentAux.ai_analysis[`ai_analysis_${editingAnalisisIA.lang}`].transcription = editingAnalisisIA.transcription
       incidentAux.ai_analysis[`ai_analysis_${editingAnalisisIA.lang}`].aiSentimentAnalysis.overallSentiment = editingAnalisisIA.aiSentimentAnalysis.overallSentiment
@@ -539,6 +747,37 @@ export default function IncidentDetailPage() {
       setIsEditingTree(false);
     }
 
+    if (card === "recomendations"){
+      const validateRecomendations = validateArray(editingRecomendations.aiRecommendations, "description")
+
+      if (!validateRecomendations){
+        toast({ title: "Error", description: `Error: ${t.fieldsRequired.replace("{field}",t.recommendations)}`, variant: "destructive", })
+        return
+      }
+      incidentAux.ai_analysis[`ai_analysis_${editingRecomendations.lang}`].aiRecommendations = editingRecomendations.aiRecommendations
+      setIsEditingRecomendations(false);
+    }
+
+    if (card === "actions"){
+      const validateActions = validateArray(editingActions.aiInmediateActions, "action")
+      const validateResponsible = validateArray(editingActions.aiInmediateActions, "responsible")
+      const validateDate = validateArray(editingActions.aiInmediateActions, "start_date")
+      const validateTime = validateArray(editingActions.aiInmediateActions, "start_time")
+      const validateStatus = validateArray(editingActions.aiInmediateActions, "status")
+      if (
+        !validateActions || 
+        !validateResponsible || 
+        !validateDate || 
+        !validateTime || 
+        !validateStatus
+      ){
+        toast({ title: "Error", description: `Error: ${t.fieldsRequired.replace("{field}",t.inmediate_actions)}`, variant: "destructive", })
+        return
+      }
+      incidentAux.ai_analysis[`ai_analysis_${editingActions.lang}`].aiInmediateActions = editingActions.aiInmediateActions
+      setIsEditingActions(false);
+    }
+
     setIsLoading(true)
     const response = await updateIncident(incidentAux)
     if (response.data) {
@@ -568,12 +807,20 @@ export default function IncidentDetailPage() {
       setIsEditingTree(false);
       setEditingCauseTree(null)
     }
+    if (card === "recomendations"){
+      setIsEditingRecomendations(false);
+      setEditingRecomendations(null)
+    }
+    if (card === "actions"){
+      setIsEditingActions(false);
+      setEditingActions(null)
+    }
   };
 
   const validateArray = (array:any, field:string) => {
     let validate= true
     array.map((a: any) => {
-        if (!a[field].trim()) {          
+        if (!a[field] || !a[field].trim() || a[field] === "-") {          
           validate = false
         }
       });
@@ -583,7 +830,7 @@ export default function IncidentDetailPage() {
   const handleChange = (
     field: string,
     value: any,
-    card: "header" | "photo" | "analysis_ia" | "events" | "tree"
+    card: "header" | "photo" | "analysis_ia" | "events" | "tree" | "recomendations" | "actions"
   ) => {
     console.log("field", field)
     console.log("value", value)
@@ -594,6 +841,8 @@ export default function IncidentDetailPage() {
       analysis_ia: setEditingAnalisisIA,
       events: setEditingEvents,
       tree: setEditingCauseTree,
+      recomendations: setEditingRecomendations,
+      actions: setEditingActions,
     } as const;
     
     const setter = setters[card];
@@ -762,6 +1011,43 @@ export default function IncidentDetailPage() {
     setSelectedContacts((prev) =>
       prev.includes(contactId) ? prev.filter((id) => id !== contactId) : [...prev, contactId],
     )
+  }
+
+  const formatToAmPm = (time:string) => {
+    const [hours, minutes] = time.split(':').map(Number)
+
+    const period = hours >= 12 ? 'PM' : 'AM'
+    const formattedHours = hours % 12 || 12
+
+    return `${String(formattedHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${period}`
+  }
+
+  const formatDateTimeEs = (isoString: string) => {
+    const date = new Date(isoString)
+
+    const datePart = date.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    })
+
+    const timePart = date
+      .toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      })
+      .toLowerCase() // am / pm
+
+    return `${datePart} ${timePart}`
+  }
+
+  const cleanForm = () => {
+    setAction("")
+    setResponsible("")
+    setDate("")
+    setTime("")
+    setCurrentStatus("")
   }
 
   const handleOpenContactSelection = (method: "whatsapp" | "email") => {
@@ -1268,7 +1554,6 @@ ${incident?.ai_analysis?.recommendations.map((r: any, i: any) => `${i + 1}. ${r}
 
 
         {/* AI Analysis and Key Events + Cause Tree Layout */}
-        {/* <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 lg:h-350 ${photos.length > 0 ? "lg:col-span-3 " : "mt-10 lg:mt-40 lg:col-span-5"}`}> */}
         <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10 lg:mb-10 ${photos.length > 0 ? "lg:col-span-3 " : "mt-10 lg:mt-40 lg:col-span-5"}`}>
           {/* Left Column: AI Analysis */}
           <Card className="bg-transparent border-transparent lg:max-h-[224vh] h-full flex flex-col min-h-0">
@@ -1384,29 +1669,7 @@ ${incident?.ai_analysis?.recommendations.map((r: any, i: any) => `${i + 1}. ${r}
                     <p className="text-slate-700 italic leading-relaxed mb-8">&ldquo;{currentAIAnalysis?.transcription}&rdquo;</p>
                   )}                  
                 </div>
-              </div>
-
-              {/* Recommendations Section */}
-              <div className="rounded-lg bg-[#6A6A6A] p-8">
-                <h4 className="font-bold text-[#FFCA00] mb-2 inline-block">{t.recommendations}</h4>
-                <ul className="space-y-2">
-                  {!currentAIAnalysis?.aiRecommendations.error ? currentAIAnalysis?.aiRecommendations?.map((rec: any, index: number) => (
-                    isEditingAnalisisIA ? (
-                        <input
-                          key={index}
-                          type="text"
-                          value={editingAnalisisIA?.aiRecommendations[index].description}
-                          onChange={(e) => handleChange(`aiRecommendations.${index}.description`, e.target.value, "analysis_ia")}
-                          className="w-full border-2 text-white border-indigo-300 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500"
-                        />
-                      ) : (
-                        <li key={index} className="flex items-start gap-2">
-                          <span className="text-white font-bold">- {typeof rec === 'string' ? rec : rec?.description}</span>
-                        </li>
-                      )
-                  )) : null}
-                </ul>
-              </div>
+              </div>              
               
                 <div className="bg-black w-full h-px my-8"></div>
 
@@ -1429,28 +1692,6 @@ ${incident?.ai_analysis?.recommendations.map((r: any, i: any) => `${i + 1}. ${r}
                   </div>
 
                   <div>
-                    {/* <p className="text-sm text-slate-600 mb-2">{t.detectedEmotions}:</p> */}
-                    <div className="space-y-2">
-                      {currentAIAnalysis?.aiSentimentAnalysis?.detectedEmotions?.map((item: any, idx: number) => {
-                        const color =
-                          EMOTIONS_COLOR[item.emotion]?.color ?? "bg-slate-400";
-
-                        return (
-                          <div key={idx}>
-                            <div className="flex justify-between text-sm mb-1">
-                              <span className="text-slate-700">{item.emotion}</span>
-                              <span className="font-medium text-slate-900">{item.percentage}%</span>
-                            </div>
-                            <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full ${color} transition-all`}
-                                style={{ width: `${item.percentage}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 pt-2 border-t">
@@ -1605,6 +1846,454 @@ ${incident?.ai_analysis?.recommendations.map((r: any, i: any) => `${i + 1}. ${r}
           </div>
         </div>
 
+          {/* Sección de Acciones Inmediatas - Después de las Recomendaciones */}
+          {currentAIAnalysis?.aiInmediateActions && currentAIAnalysis.aiInmediateActions.length > 0 && (
+            <Card className="bg-transparent border-transparent lg:h-auto flex flex-col min-h-0 mb-6">
+              <div>
+                {/* Header de Acciones */}
+                <div className="bg-[#7C7FA5] w-full h-16 rounded-lg p-4 flex items-center justify-between relative z-10 -mt-6">
+                  <div className="flex items-center gap-4 w-full">
+                    <p className="text-xl font-medium text-white">{t.inmediate_actions}</p>
+                    <div className="flex gap-2 ml-auto p-2">
+                      {!isEditingActions ? (
+                        <button
+                          onClick={() => handleEdit(currentAIAnalysis, "actions")}
+                          className="bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 p-2 rounded-lg
+                            shadow-sm transition-all duration-200 group"
+                          title="Editar"
+                        >
+                          <Pencil className="w-5 h-5 text-slate-600 group-hover:scale-110 transition-transform" />
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => {
+                              cleanForm()
+                              setIsModalOpen(true)}
+                            }
+                            className="bg-green-500 hover:bg-green-600 p-2 rounded-lg transition-all duration-200 group"
+                            title="Agregar"
+                          >
+                            <Plus className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                          </button>
+                          <button
+                            onClick={() => handleSave("actions")}
+                            className="bg-green-500 hover:bg-green-600 p-2 rounded-lg transition-all duration-200 group"
+                            title="Guardar"
+                          >
+                            <Save className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                          </button>
+                          <button
+                            onClick={() => handleCancel("actions")}
+                            className="bg-red-500 hover:bg-red-600 p-2 rounded-lg transition-all duration-200 group"
+                            title="Cancelar"
+                          >
+                            <X className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <CardContent className="pt-12 pb-4 bg-white rounded-xl -mt-10 sm:-mt-14 lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
+                <div className="space-y-3">
+                  {/* Header solo en desktop */}
+                  <div className="hidden lg:block relative rounded-lg z-10">
+                    <div className="grid grid-cols-12 gap-4 items-start">
+                      {/* Número */}
+                      <div className="col-span-1"></div>
+
+                      {/* Descripción de la acción */}
+                      <div className="col-span-4"></div>
+
+                      {/* Responsable */}
+                      <div className={`${isEditingActions ? "col-span-2" : "col-span-3"} bg-white/10 rounded-lg pr-2`}>
+                        <div className="bg-[#5B64A2] flex items-center p-3 rounded-sm gap-2">
+                          <User className="h-4 w-4 text-white" />
+                          <span className="text-md text-white font-medium">{t.fieldResponsible}:</span>
+                        </div>
+                      </div>
+
+                      {/* A cargo desde */}
+                      <div className="col-span-2 bg-white/10 rounded-lg pr-2">
+                        <div className="bg-[#5B64A2] flex items-center p-3 rounded-sm gap-2 mb-1">
+                          <Calendar className="h-4 w-4 text-white" />
+                          <span className="text-md text-white/80 font-medium">{t.fieldCharge}:</span>
+                        </div>
+                      </div>
+
+                      {/* Estado actual */}
+                      <div className="col-span-2 bg-white/10 rounded-lg pr-2">
+                        <div className="bg-[#5B64A2] flex items-center p-3 rounded-sm gap-2 mb-2">
+                          <Clock className="h-4 w-4 text-white" />
+                          <span className="text-md text-white/80 font-medium">{t.fieldStatus}:</span>
+                        </div>
+                      </div>
+                      
+                      {isEditingActions && <div className="col-span-1"></div>}
+                    </div>
+                  </div>
+
+                  {/* Lista de acciones */}
+                  {(isEditingActions ? editingActions?.aiInmediateActions : currentAIAnalysis?.aiInmediateActions)?.map((action: any, index: number) => (
+                    <div key={index}>
+                      {/* Vista Desktop */}
+                      <div className="hidden lg:grid lg:grid-cols-12 gap-4 items-start">
+                        {/* Número */}
+                        <div className="col-span-1 flex items-center justify-center">
+                          <span className="text-3xl font-bold text-[#9097C8]">{index + 1}</span>
+                        </div>
+
+                        {/* Descripción de la acción */}
+                        <div className="col-span-4">
+                          <h4 className="font-semibold mb-2">
+                            {isEditingActions ? (
+                              <textarea
+                                rows={3}
+                                value={editingActions?.aiInmediateActions[index]?.action || "-"}
+                                onChange={(e) => handleChange(`aiInmediateActions.${index}.action`, e.target.value, "actions")}
+                                className="w-full border-2 border-indigo-300 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500 text-slate-900"
+                              />
+                            ) : (
+                              action.action
+                            )}
+                          </h4>
+                        </div>
+
+                        {/* Responsable */}
+                        <div className={`${isEditingActions ? "col-span-2" : "col-span-3"} bg-white/10 rounded-lg`}>
+                          <p className="text-sm font-semibold">
+                            {isEditingActions ? (
+                              <select
+                                value={editingActions?.aiInmediateActions[index]?.responsible || "-"}
+                                onChange={(e) => handleChange(`aiInmediateActions.${index}.responsible`, e.target.value, "actions")}
+                                className="px-4 min-w-[80%] max-w-full py-2.5 bg-white rounded-lg shadow-lg text-sm font-medium text-gray-700 cursor-pointer border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-gray-50 transition-colors"
+                                aria-label="Responsable"
+                              >
+                                <option key="-1" value="-">{t.select}</option>
+                                {RESPONSIBLES.map((obj: any, idx: number) => (
+                                  <option key={idx} value={obj.code}>
+                                    {getResponsibleLabel(obj.code, editingActions.lang)}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              getResponsibleLabel(action.responsible, currentAIAnalysis.lang)
+                            )}
+                          </p>
+                        </div>
+
+                        {/* A cargo desde */}
+                        <div className="col-span-2 bg-white/10 rounded-lg">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-md font-medium">
+                              {isEditingActions ? (
+                                <input
+                                  type="date"
+                                  value={editingActions?.aiInmediateActions[index]?.start_date ?? ""}
+                                  onChange={(e) => handleChange(`aiInmediateActions.${index}.start_date`, e.target.value, "actions")}
+                                  className="w-full border-2 border-indigo-300 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500 text-slate-900"
+                                />
+                              ) : action.start_date ? (
+                                new Date(action.start_date).toLocaleDateString('es-AR', {
+                                  day: 'numeric',
+                                  month: 'long',
+                                  year: 'numeric',
+                                })
+                              ) : (
+                                "-"
+                              )}
+                            </span>
+                          </div>
+                          <p className="text-sm">
+                            {isEditingActions ? (
+                              <input
+                                type="time"
+                                value={editingActions?.aiInmediateActions[index]?.start_time ?? ""}
+                                onChange={(e) => handleChange(`aiInmediateActions.${index}.start_time`, e.target.value, "actions")}
+                                className="w-full border-2 border-indigo-300 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500 text-slate-900"
+                              />
+                            ) : action.start_time ? (
+                              formatToAmPm(action.start_time)
+                            ) : (
+                              "-"
+                            )}
+                          </p>
+                        </div>
+
+                        {/* Estado actual */}
+                        <div className="col-span-2 bg-white/10 rounded-lg">
+                          {isEditingActions ? (
+                            <select
+                              value={editingActions?.aiInmediateActions[index]?.status ?? "-"}
+                              onChange={(e) => {
+                                handleChange(`aiInmediateActions.${index}.status`, e.target.value, "actions")
+                                handleChange(`aiInmediateActions.${index}.status_date`, new Date().toISOString(), "actions")
+                              }}
+                              className="px-4 py-2.5 bg-white rounded-lg shadow-lg text-sm font-medium text-gray-700 cursor-pointer border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-gray-50 transition-colors"
+                              aria-label="Estado"
+                            >
+                              <option key="-1" value="-">{t.select}</option>
+                              <option value="action_pending">{t.action_pending}</option>
+                              <option value="action_progress">{t.action_progress}</option>
+                              <option value="action_finished">{t.action_finished}</option>
+                            </select>
+                          ) : (
+                            <span className="font-semibold">{getActionStatusLabel(action.status)}</span>
+                          )}
+                          {action.status_date && (
+                            <p className="text-sm mt-1">{formatDateTimeEs(action.status_date)}</p>
+                          )}
+                        </div>
+
+                        {isEditingActions && (
+                          <div className="col-span-1">
+                            <button
+                              onClick={() => handleDelete(action, index)}
+                              className="bg-red-500 hover:bg-red-600 p-2 rounded-lg transition-all duration-200 group"
+                              title="Eliminar"
+                            >
+                              <Trash2 className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Vista Mobile - Card estilo de la imagen */}
+                      <div className="lg:hidden bg-[#7C7FA5] rounded-lg p-4 relative">
+                        {/* Número de acción */}
+                        <div className="absolute top-3 left-3">
+                          <span className="text-2xl font-bold text-white">{index + 1}</span>
+                        </div>
+
+                        {/* Botón eliminar en modo edición */}
+                        {isEditingActions && (
+                          <div className="absolute top-3 right-3">
+                            <button
+                              onClick={() => handleDelete(action, index)}
+                              className="bg-red-500 hover:bg-red-600 p-2 rounded-lg transition-all duration-200"
+                              title="Eliminar"
+                            >
+                              <Trash2 className="w-4 h-4 text-white" />
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Contenido de la tarjeta */}
+                        <div className="mt-10 space-y-3">
+                          {/* Título/Descripción */}
+                          <div>
+                            {isEditingActions ? (
+                              <textarea
+                                rows={3}
+                                value={editingActions?.aiInmediateActions[index]?.action || "-"}
+                                onChange={(e) => handleChange(`aiInmediateActions.${index}.action`, e.target.value, "actions")}
+                                className="w-full border-2 text-white border-indigo-300 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500 text-slate-900 text-sm"
+                              />
+                            ) : (
+                              <h4 className="font-semibold text-white text-sm leading-tight">
+                                {action.action}
+                              </h4>
+                            )}
+                          </div>
+
+                          {/* Responsable */}
+                          <div className="bg-[#5B64A2] rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <User className="h-4 w-4 text-white" />
+                              <span className="text-xs text-white font-medium">{t.fieldResponsible}:</span>
+                            </div>
+                            {isEditingActions ? (
+                              <select
+                                value={editingActions?.aiInmediateActions[index]?.responsible || "-"}
+                                onChange={(e) => handleChange(`aiInmediateActions.${index}.responsible`, e.target.value, "actions")}
+                                className="w-full px-3 py-2 bg-white rounded-lg text-sm font-medium text-gray-700 cursor-pointer border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                aria-label="Responsable"
+                              >
+                                <option key="-1" value="-">{t.select}</option>
+                                {RESPONSIBLES.map((obj: any, idx: number) => (
+                                  <option key={idx} value={obj.code}>
+                                    {getResponsibleLabel(obj.code, editingActions.lang)}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <p className="text-sm text-white font-semibold">
+                                {getResponsibleLabel(action.responsible, currentAIAnalysis.lang)}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* A cargo desde */}
+                          <div className="bg-[#5B64A2] rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Calendar className="h-4 w-4 text-white" />
+                              <span className="text-xs text-white font-medium">{t.fieldCharge}:</span>
+                            </div>
+                            {isEditingActions ? (
+                              <div className="space-y-2">
+                                <input
+                                  type="date"
+                                  value={editingActions?.aiInmediateActions[index]?.start_date ?? ""}
+                                  onChange={(e) => handleChange(`aiInmediateActions.${index}.start_date`, e.target.value, "actions")}
+                                  className="w-full border-2 text-white border-indigo-300 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500 text-slate-900 text-sm
+                                  [&::-webkit-calendar-picker-indicator]:hidden
+                                  [&::-webkit-calendar-picker-indicator]:opacity-0"
+                                />
+                                <input
+                                  type="time"
+                                  value={editingActions?.aiInmediateActions[index]?.start_time ?? ""}
+                                  onChange={(e) => handleChange(`aiInmediateActions.${index}.start_time`, e.target.value, "actions")}
+                                  className="w-full border-2 text-white border-indigo-300 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500 text-slate-900 text-sm
+                                  [&::-webkit-calendar-picker-indicator]:hidden
+                                  [&::-webkit-calendar-picker-indicator]:opacity-0"
+                                />
+                              </div>
+                            ) : (
+                              <>
+                                <p className="text-sm text-white font-semibold">
+                                  {action.start_date
+                                    ? new Date(action.start_date).toLocaleDateString('es-AR', {
+                                        day: 'numeric',
+                                        month: 'long',
+                                        year: 'numeric',
+                                      })
+                                    : "-"}
+                                </p>
+                                <p className="text-xs text-white/80 mt-1">
+                                  {action.start_time ? formatToAmPm(action.start_time) : "-"}
+                                </p>
+                              </>
+                            )}
+                          </div>
+
+                          {/* Estado actual */}
+                          <div className="bg-[#5B64A2] rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Clock className="h-4 w-4 text-white" />
+                              <span className="text-xs text-white font-medium">{t.fieldStatus}:</span>
+                            </div>
+                            {isEditingActions ? (
+                              <select
+                                value={editingActions?.aiInmediateActions[index]?.status ?? "-"}
+                                onChange={(e) => {
+                                  handleChange(`aiInmediateActions.${index}.status`, e.target.value, "actions")
+                                  handleChange(`aiInmediateActions.${index}.status_date`, new Date().toISOString(), "actions")
+                                }}
+                                className="w-full px-3 py-2 bg-white rounded-lg text-sm font-medium text-gray-700 cursor-pointer border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                aria-label="Estado"
+                              >
+                                <option key="-1" value="-">{t.select}</option>
+                                <option value="action_pending">{t.action_pending}</option>
+                                <option value="action_progress">{t.action_progress}</option>
+                                <option value="action_finished">{t.action_finished}</option>
+                              </select>
+                            ) : (
+                              <>
+                                <p className="text-sm text-white font-semibold">
+                                  {getActionStatusLabel(action.status)}
+                                </p>
+                                {action.status_date && (
+                                  <p className="text-xs text-white/80 mt-1">
+                                    {formatDateTimeEs(action.status_date)}
+                                  </p>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Separador */}
+                      {index < (isEditingActions ? editingActions?.aiInmediateActions?.length - 1 : currentAIAnalysis?.aiInmediateActions?.length - 1) && (
+                        <div className="h-px bg-[#747474] w-full mt-2 hidden lg:block"></div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+            {/* Sección de Recomendaciones - Reemplaza la existente */}
+            {currentAIAnalysis?.aiRecommendations && !currentAIAnalysis?.aiRecommendations.error && (
+              <Card className="bg-transparent border-transparent lg:h-auto flex flex-col min-h-0 mb-6">
+                <div>
+                  {/* Header de Recomendaciones */}
+                  <div className="bg-[#D84B00] w-full h-16 rounded-lg p-6 flex items-center justify-between relative z-10 -mt-6">
+                    <div className="flex items-center gap-4 w-full">
+                      <p className="text-xl font-medium text-white">{t.recommendations}</p>
+                      <div className="flex gap-2 ml-auto p-2">
+                        {!isEditingRecomendations ? (
+                          <button
+                            onClick={() => handleEdit(currentAIAnalysis, "recomendations")}
+                            className="bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 p-2 rounded-lg
+                              shadow-sm transition-all duration-200 group"
+                            title="Editar"
+                          >
+                            <Pencil className="w-5 h-5 text-slate-600 group-hover:scale-110 transition-transform" />
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleSave("recomendations")}
+                              className="bg-green-500 hover:bg-green-600 p-2 rounded-lg transition-all duration-200 group"
+                              title="Guardar"
+                            >
+                              <Save className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                            </button>
+                            <button
+                              onClick={() => handleCancel("recomendations")}
+                              className="bg-red-500 hover:bg-red-600 p-2 rounded-lg transition-all duration-200 group"
+                              title="Cancelar"
+                            >
+                              <X className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <CardContent className="pt-12 pb-4 bg-[#D84B00] rounded-xl -mt-10 sm:-mt-14 lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
+                  <div className="space-y-4">
+                    {(isEditingRecomendations ? editingRecomendations?.aiRecommendations : currentAIAnalysis?.aiRecommendations)?.map((rec: any, index: number) => (
+                      <div key={index}>
+                        {/* Contenido de la recomendación */}
+                        <div className="flex items-start gap-4 text-white">
+                          <div className="flex-shrink-0 mt-1 pt-2">
+                            <img src="/comentario-alt.svg" alt="Warning" className="h-6 w-12" />
+                          </div>
+                          <div className="flex-1">
+                            {isEditingRecomendations ? (
+                              <textarea
+                                rows={3}
+                                value={editingRecomendations?.aiRecommendations[index]?.description}
+                                onChange={(e) => handleChange(`aiRecommendations.${index}.description`, e.target.value, "recomendations")}
+                                className="w-full text-white border-2 border-orange-300 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-400 text-slate-900"
+                              />
+                            ) : (
+                              <p className="text-base leading-relaxed">
+                                {typeof rec === 'string' ? rec : rec?.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Separador - fuera del flex container */}
+                        {index < (isEditingRecomendations ? editingRecomendations?.aiRecommendations?.length - 1 : currentAIAnalysis?.aiRecommendations?.length - 1) && (
+                          <div className="h-px bg-white/30 w-full mt-4"></div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
         {/* Comparative Analysis */}
         {currentAIAnalysis?.aiHeader?.similar_cases && (
           <Card className="bg-transparent border-transparent lg:h-175 flex flex-col min-h-0">
@@ -1715,6 +2404,182 @@ ${incident?.ai_analysis?.recommendations.map((r: any, i: any) => `${i + 1}. ${r}
           </CardContent>
         </Card>
       </div>
+
+      {/* Modal de Confirmación de Eliminación */}
+      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <AlertTriangle className="h-6 w-6 text-red-600" />
+              {t.deleteActionTitle}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <p className="text-slate-700 mb-4">{t.deleteActionMessage}</p>
+            
+            {actionToDelete && (
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                <p className="text-sm font-semibold text-slate-900 mb-2">
+                  {t.inmediate_actions} #{actionToDelete.index + 1}
+                </p>
+                <p className="text-sm text-slate-600 line-clamp-3">
+                  {actionToDelete.action?.action || actionToDelete.action?.description}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3 justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={cancelDelete}
+              className="px-6"
+            >
+              {t.deleteActionCancel}
+            </Button>
+            <Button
+              type="button"
+              onClick={confirmDelete}
+              className="px-6 bg-red-600 hover:bg-red-700 text-white"
+            >
+              {t.deleteActionConfirm}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <DialogContent className="p-0 overflow-hidden w-[calc(100vw-2rem)] sm:w-full max-w-none md:max-w-2xl max-h-[calc(100vh-6rem)] md:max-h-[90vh] bg-white/95 backdrop-blur border border-white/30 shadow-2xl rounded-2xl **:data-[slot=dialog-close]:text-white **:data-[slot=dialog-close]:hover:text-white">
+            {/* Header */}
+            <div className="bg-[#2d3561] px-5 sm:px-6 py-5">
+              <DialogHeader className="space-y-1">
+                <DialogTitle className="text-white">{t.new_action}</DialogTitle>
+              </DialogHeader>
+            </div>
+
+            {/* Body */}
+            <div className="px-4 sm:px-6 py-5 bg-white/95 max-h-[calc(100vh-18rem)] md:max-h-[calc(90vh-14rem)] overflow-y-auto">
+              <div className="space-y-5">
+              {/* Details */}
+              <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 sm:p-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                    <Label htmlFor="title" className="text-sm font-medium text-slate-800">
+                      {t.fieldAction} <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="action"
+                      placeholder={t.fieldAction}
+                      value={action}
+                      onChange={(e) => setAction(e.target.value)}
+                      required
+                      className="bg-white border-slate-200 rounded-xl focus-visible:ring-[#FFCA00]"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="description" className="text-sm font-medium text-slate-800">
+                      {t.fieldResponsible} <span className="text-red-500">*</span>
+                    </Label>
+                    <select
+                      value={responsible ?? "-"}
+                      onChange={(e) => setResponsible(e.target.value)}
+                      className="px-4 w-full py-2.5 bg-white rounded-lg shadow-lg text-sm font-medium text-gray-700 cursor-pointer border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-gray-50 transition-colors"
+                      aria-label="Prioridad"
+                    >
+                      <option key="-1" value="-">{t.select}</option>
+                      {
+                      RESPONSIBLES.map((obj: any, idx: number) => (
+                        <option key={idx} value={obj.code}>{getResponsibleLabel(obj.code, currentAIAnalysis?.lang ?? "es")}</option>
+                      ))}
+                    </select>
+                  </div>                      
+                  </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 sm:p-5">
+                  <div className="text-xs font-semibold tracking-wide text-slate-500 uppercase mb-4">
+                    {t.fieldCharge}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="date" className="text-sm font-medium text-slate-800">
+                          {t.date} <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="date"
+                          type="date"
+                          value={date}
+                          onChange={(e) => setDate(e.target.value)}
+                          required
+                          className="bg-white border-slate-200 rounded-xl focus-visible:ring-[#FFCA00]"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="time" className="text-sm font-medium text-slate-800">
+                        {t.fieldTime} <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="time"
+                        type="time"
+                        value={time}
+                        onChange={(e) => setTime(e.target.value)}
+                        required
+                        className="bg-white border-slate-200 rounded-xl focus-visible:ring-[#FFCA00]"
+                      />
+                    </div>
+                  </div>                  
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 sm:p-5">
+                  <div className="text-xs font-semibold tracking-wide text-slate-500 uppercase mb-4">
+                    {t.fieldStatus}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <select
+                          value={currentStatus}
+                          onChange={(e) => setCurrentStatus(e.target.value)}
+                          className="px-4 w-full py-2.5 bg-white rounded-lg shadow-lg text-sm font-medium text-gray-700 cursor-pointer border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-gray-50 transition-colors"
+                          aria-label="Prioridad"
+                        >
+                          <option key="-1" value="-">{t.select}</option>
+                          <option value="action_pending">{t.action_pending}</option>
+                          <option value="action_progress">{t.action_progress}</option>
+                          <option value="action_finished">{t.action_finished}</option>
+                        </select>
+                      </div>
+                  </div>                  
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-4 sm:px-6 py-4 bg-white/95 border-t border-slate-200/60">
+              <div className="flex flex-col-reverse sm:flex-row gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isLoading}
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 rounded-xl"
+                >
+                  {t.cancel}
+                </Button>
+                <Button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={handleCreateAction}
+                  className="flex-1 bg-[#FFCA00] text-black hover:bg-[#FFCA00]/90 rounded-xl"
+                >
+                  {t.create}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
       {/* Photo Zoom Modal */}
       <Dialog
